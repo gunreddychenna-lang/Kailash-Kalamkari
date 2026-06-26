@@ -32,14 +32,12 @@ function normalizeImageUrl(url) {
         return fileId ? buildCdnImageUrl(fileId, 1200) : trimmed;
     }
 
-    if (lower.includes('drive.google.com/uc?export=view&id=')) {
-        return trimmed;
-    }
-
+    // For all Google Drive URLs, extract the file ID and use CDN format
     if (lower.includes('drive.google.com') || lower.includes('docs.google.com')) {
         const fileId = extractDriveFileId(trimmed);
         if (fileId) {
-            return `https://drive.google.com/uc?export=view&id=${fileId}`;
+            // Use Google's CDN which is designed for embedding and has better CORS support
+            return buildCdnImageUrl(fileId, 1200);
         }
     }
 
@@ -48,7 +46,7 @@ function normalizeImageUrl(url) {
         if (parsed.hostname.includes('drive.google.com') || parsed.hostname.includes('docs.google.com')) {
             const fileId = extractDriveFileId(trimmed);
             if (fileId) {
-                return `https://drive.google.com/uc?export=view&id=${fileId}`;
+                return buildCdnImageUrl(fileId, 1200);
             }
         }
         return trimmed;
