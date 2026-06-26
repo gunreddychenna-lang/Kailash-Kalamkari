@@ -12,6 +12,11 @@ function buildCdnImageUrl(fileId, width = 1200) {
     return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
 }
 
+function buildDirectDriveUrl(fileId) {
+    if (!fileId) return '';
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
+}
+
 function normalizeImageUrl(url) {
     if (!url || typeof url !== 'string') return '';
 
@@ -59,8 +64,10 @@ function getProductImageSources(product, { detail = false } = {}) {
     const width = detail ? 2000 : 800;
     const fileId = product.imageId || extractDriveFileId(product.imageLink) || extractDriveFileId(product.thumbnail);
     const cdnUrl = fileId ? buildCdnImageUrl(fileId, width) : '';
+    const directDriveUrl = fileId ? buildDirectDriveUrl(fileId) : '';
     const sources = [
         cdnUrl,
+        directDriveUrl,
         product.imageLink,
         product.thumbnail,
         DEFAULT_IMAGE
@@ -160,8 +167,9 @@ async function fetchProducts() {
             const imageId = String(item['image id'] || item.imageId || '').trim();
             const rawImageLink = String(item['image link'] || item.imageLink || '').trim();
             const rawThumbnail = String(item.thumbnail || item[''] || '').trim();
-            const imageLink = normalizeImageUrl(rawImageLink) ||
-                (imageId ? `https://drive.google.com/uc?export=view&id=${imageId}` : '');
+            const imageLink = (imageId ? buildCdnImageUrl(imageId, 1200) : '') ||
+                normalizeImageUrl(rawImageLink) ||
+                (imageId ? buildDirectDriveUrl(imageId) : '');
             const thumbnail = (imageId ? buildCdnImageUrl(imageId, 800) : '') ||
                 normalizeImageUrl(rawThumbnail) ||
                 imageLink;
