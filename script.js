@@ -147,6 +147,16 @@ async function fetchProducts() {
         const response = await fetch(API_URL);
         const data = await response.json();
         
+        const getFieldValue = (item, keys) => {
+            for (const key of keys) {
+                const value = item[key];
+                if (value !== undefined && value !== null && String(value).trim()) {
+                    return String(value);
+                }
+            }
+            return '';
+        };
+
         // Clean and prepare data
         allProducts = data.map(item => {
             const imageId = String(item['image id'] || item.imageId || '').trim();
@@ -158,16 +168,31 @@ async function fetchProducts() {
                 normalizeImageUrl(rawThumbnail) ||
                 imageLink;
 
+            // helper to parse price values robustly (strip commas/currency)
+            function parsePrice(val) {
+                if (val === undefined || val === null || String(val).trim() === '') return 0;
+                const cleaned = String(val).replace(/[^0-9.\-]/g, '');
+                const n = Number(cleaned);
+                return isNaN(n) ? 0 : n;
+            }
+
             return {
-                code: String(item.code || '').trim(),
-                fabric: String(item.fabric || 'Pure Silk').trim(),
-                price: Number(item.price) || 0,
-                qty: Number(item.qty) || 0,
-                imageId,
-                imageLink,
-                thumbnail,
-                description: String(item.description || '').trim()
-            };
+                    code: String(item.code || '').trim(),
+                    fabric: String(item.fabric || 'Pure Silk').trim(),
+                    price: parsePrice(item.price || item.Price || ''),
+                    qty: Number(item.qty) || 0,
+                    imageId,
+                    imageLink,
+                    thumbnail,
+                    description: String(getFieldValue(item, [
+                        'description',
+                        'Description',
+                        'product description',
+                        'Product Description',
+                        'desc',
+                        'Desc'
+                    ])).trim()
+                };
         }).filter(item => item.code);
 
         const sortProductsByPrice = products => [...products].sort((a, b) => (a.price || 0) - (b.price || 0));
@@ -223,8 +248,10 @@ function renderProducts(products, container) {
 
         const info = document.createElement('div');
         info.className = 'product-info';
+        const shortDescription = product.description ? `${String(product.description).trim().slice(0, 120)}${product.description.length > 120 ? '...' : ''}` : '';
         info.innerHTML = `
             <h3 class="product-title">${product.fabric} Saree</h3>
+            ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
             <div class="product-price">&#8377;${formattedPrice}</div>
         `;
 

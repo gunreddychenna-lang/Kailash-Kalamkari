@@ -487,6 +487,14 @@ body.details-mode .wishlist-trigger {
     line-height: 1.3;
 }
 
+.product-card-description {
+    font-size: 0.95rem;
+    color: var(--color-muted);
+    line-height: 1.5;
+    margin: 0.75rem 0 0.8rem;
+    min-height: 3.5rem;
+}
+
 .product-price {
     font-weight: 700;
     font-size: 1.4rem;
