@@ -16,14 +16,13 @@
     <div class="header-container">
         <div>
             <h1>Kalamkari Sarees</h1>
-            </div>
+        </div>
         <div class="header-actions">
             <button id="view-wishlist-btn" class="wishlist-trigger">
                 Wishlist (<span id="wishlist-count">0</span>)
             </button>
         </div>
     </div>
-    
     <div id="category-filters" class="category-filters"></div>
 </header>
 
@@ -48,7 +47,7 @@
                     <span class="tag stock-tag">In Stock</span>
                 </div>
                 <h2 id="detail-title" class="detail-title">Pure Silk Saree</h2>
-                <p id="detail-description" class="product-description"></p>
+                
                 <div class="price-card">
                     <span class="price-label">PRICE</span>
                     <div class="price-wrapper">
@@ -56,6 +55,14 @@
                         <span id="detail-price" class="amount">0</span>
                     </div>
                 </div>
+
+                <div class="action-buttons">
+                    <button id="add-to-wishlist-btn" class="primary-btn wishlist-btn">
+                        <span class="btn-icon">❤️</span> <span id="wishlist-btn-text">Add to Wishlist</span>
+                    </button>
+                </div>
+
+                <p id="detail-description" class="product-description"></p>
                 <div class="product-highlights">
                     <h3 class="highlights-title">PRODUCT HIGHLIGHTS</h3>
                     <ul class="highlights-list">
@@ -63,11 +70,6 @@
                         <li><span class="icon">✨</span><p><strong>Traditional Craftsmanship:</strong> Elegant design with intricate details.</p></li>
                         <li><span class="icon">🚚</span><p><strong>Express Delivery:</strong> Packed carefully and shipped safely.</p></li>
                     </ul>
-                </div>
-                <div class="action-buttons">
-                    <button id="add-to-wishlist-btn" class="primary-btn wishlist-btn">
-                        <span class="btn-icon">❤️</span> <span id="wishlist-btn-text">Add to Wishlist</span>
-                    </button>
                 </div>
             </div>
         </div>
@@ -87,11 +89,29 @@
 </main>
 
 <script>
-    window.addEventListener('load', () => { history.pushState({ appHome: true }, '', window.location.href); });
+    let isExiting = false;
+    history.pushState({ appHome: true }, '', window.location.href);
+
     window.addEventListener('popstate', () => {
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.getElementById('catalogue-view').classList.add('active');
-        history.pushState({ appHome: true }, '', window.location.href);
+        if (isExiting) return;
+
+        const catalogueView = document.getElementById('catalogue-view');
+        const isCatalogueActive = catalogueView && catalogueView.classList.contains('active');
+
+        if (isCatalogueActive) {
+            if (window.scrollY > 50 || document.documentElement.scrollTop > 50) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                history.pushState({ appHome: true }, '', window.location.href);
+            } else {
+                isExiting = true;
+                history.back();
+            }
+        } else {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            if (catalogueView) catalogueView.classList.add('active');
+            document.body.classList.remove('details-mode');
+            history.pushState({ appHome: true }, '', window.location.href);
+        }
     });
 </script>
 <script src="script.js?v=5"></script>
