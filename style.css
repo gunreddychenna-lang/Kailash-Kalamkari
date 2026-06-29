@@ -37,5 +37,26 @@ body { font-family: 'Outfit', sans-serif; background: var(--color-ghee); color: 
 .wishlist-btn:hover { background-color: var(--color-indigo); }
 
 @media (max-width: 992px) {
-    .product-details-container { grid-template-columns: 1fr; }
+    /* Ensure the container is a grid */
+.product-details-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* This splits into two equal columns */
+    gap: 3rem;
+    background: #FFFFFF;
+    padding: 3rem;
+    border-radius: 24px;
+    align-items: start; /* Prevents stretching */
+}
+
+/* Ensure the image section doesn't collapse */
+.product-image-section {
+    width: 100%;
+}
+
+/* Ensure the info section takes the remaining space */
+.product-info-section {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
 }
