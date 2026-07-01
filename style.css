@@ -176,6 +176,139 @@ h1 {
     transform: translateY(-1px);
 }
 
+.collections-section {
+    max-width: 1200px;
+    margin: 1.6rem auto 1.2rem;
+    padding: 0 2rem;
+}
+
+.section-heading {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+    font-family: var(--font-heading);
+    color: var(--color-madder);
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+    line-height: 1.15;
+}
+
+.section-heading p {
+    color: var(--color-muted);
+    font-size: 1rem;
+}
+
+.collections-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.collection-card {
+    border: 1px solid rgba(212, 154, 54, 0.28);
+    border-radius: 24px;
+    padding: 1.4rem;
+    background:
+        linear-gradient(135deg, rgba(255, 249, 240, 0.98), rgba(238, 220, 191, 0.94));
+    box-shadow: 0 18px 48px rgba(43, 58, 74, 0.1);
+    cursor: pointer;
+    transition: var(--transition);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    min-height: 132px;
+}
+
+.collection-card:hover,
+.collection-card.active {
+    border-color: rgba(139, 46, 36, 0.5);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+}
+
+.collection-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139, 46, 36, 0.1);
+    font-size: 1.8rem;
+}
+
+.collection-card h3 {
+    font-family: var(--font-heading);
+    color: var(--color-indigo);
+    font-size: 1.55rem;
+    line-height: 1.1;
+}
+
+.collection-card p {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+}
+
+.collection-button {
+    border: 1px solid rgba(139, 46, 36, 0.28);
+    border-radius: 999px;
+    background: var(--color-madder);
+    color: var(--color-ghee);
+    padding: 0.8rem 1rem;
+    font-family: var(--font-body);
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.department-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    max-width: 1200px;
+    margin: 0 auto 1.25rem;
+    padding: 0.75rem 2rem;
+    background: rgba(255, 248, 237, 0.92);
+    border-bottom: 1px solid rgba(212, 154, 54, 0.18);
+    backdrop-filter: blur(14px);
+    -webkit-overflow-scrolling: touch;
+}
+
+.department-bar::-webkit-scrollbar {
+    height: 6px;
+}
+
+.department-bar::-webkit-scrollbar-thumb {
+    background: rgba(139, 46, 36, 0.24);
+    border-radius: 999px;
+}
+
+.department-btn {
+    flex: 0 0 auto;
+    border: 1px solid rgba(139, 46, 36, 0.26);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--color-madder);
+    padding: 0.75rem 1.25rem;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.department-btn:hover,
+.department-btn.active {
+    background: var(--color-madder);
+    color: var(--color-ghee);
+    box-shadow: 0 10px 28px rgba(139, 46, 36, 0.18);
+}
+
 .search-bar-container {
     max-width: 760px;
     margin: 1.5rem auto 1.5rem;
@@ -303,6 +436,10 @@ h1 {
 /* Details Mode Overrides */
 body.details-mode h1,
 body.details-mode .hero-copy,
+body.details-mode .hero-subtitle,
+body.details-mode .hero-badges,
+body.details-mode .collections-section,
+body.details-mode .department-bar,
 body.details-mode .search-bar-container,
 body.details-mode .category-filters {
     display: none;
@@ -842,6 +979,35 @@ body.details-mode .wishlist-trigger {
 @media (max-width: 768px) {
     .main-header {
         padding: 1.3rem 1rem 0.9rem;
+    }
+
+    .collections-section {
+        padding: 0 1rem;
+        margin-top: 1.1rem;
+    }
+
+    .collections-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .collection-card {
+        grid-template-columns: auto 1fr;
+        padding: 1.1rem;
+    }
+
+    .collection-button {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .department-bar {
+        padding: 0.7rem 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .department-btn {
+        min-width: 132px;
+        text-align: center;
     }
 
     .header-container {

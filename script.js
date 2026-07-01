@@ -9,7 +9,6 @@ function extractDriveFileId(url) {
 
 function buildCdnImageUrl(fileId, width = 1200) {
     if (!fileId) return '';
-    // FIXED: Corrected interpolation syntax and upgraded to secure Drive thumbnail endpoint
     return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
 }
 
@@ -61,12 +60,18 @@ function normalizeImageUrl(url) {
 
 function getProductImageSources(product, { detail = false } = {}) {
     const width = detail ? 2000 : 800;
-    const fileId = product.imageId || extractDriveFileId(product.imageLink) || extractDriveFileId(product.thumbnail);
+    const fileId = product.imageId ||
+        extractDriveFileId(product.imageLink) ||
+        extractDriveFileId(product.thumbnail) ||
+        extractDriveFileId(product.rawImageLink) ||
+        extractDriveFileId(product.rawThumbnail);
     const cdnUrl = fileId ? buildCdnImageUrl(fileId, width) : '';
     const directDriveUrl = fileId ? buildDirectDriveUrl(fileId) : '';
     const sources = [
         cdnUrl,
         directDriveUrl,
+        product.rawImageLink,
+        product.rawThumbnail,
         product.imageLink,
         product.thumbnail,
         DEFAULT_IMAGE
@@ -95,11 +100,93 @@ function sortProductsByPrice(products) {
     return [...products].sort((a, b) => (a.price || 0) - (b.price || 0));
 }
 
+function getInitialDepartment() {
+    const params = new URLSearchParams(window.location.search);
+    return normalizeDepartment(params.get('department')) || 'saree';
+}
+
+function normalizeDepartment(value) {
+    const normalized = String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z]/g, '');
+
+    if (
+        normalized.includes('dupatta') ||
+        normalized.includes('duppata') ||
+        normalized.includes('duppatta')
+    ) return 'dupatta';
+    if (normalized.includes('saree') || normalized.includes('sari')) return 'saree';
+    return '';
+}
+
+function getDepartmentConfig(departmentKey = currentDepartment) {
+    return DEPARTMENTS.find(department => department.key === departmentKey) || DEPARTMENTS[0];
+}
+
+function getDepartmentProducts(departmentKey = currentDepartment) {
+    return allProducts.filter(product => product.departmentKey === departmentKey);
+}
+
+function inferDepartmentFromText(...values) {
+    const combined = values
+        .filter(Boolean)
+        .map(value => String(value))
+        .join(' ');
+
+    return normalizeDepartment(combined);
+}
+
+function updateDepartmentUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('department', currentDepartment);
+    window.history.replaceState({}, '', url);
+}
+
+function updateDepartmentUI() {
+    const activeDepartment = getDepartmentConfig();
+
+    document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
+        const departmentKey = normalizeDepartment(element.dataset.department);
+        element.classList.toggle('active', departmentKey === currentDepartment);
+    });
+
+    if (elements.searchInput) {
+        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by code, fabric or colour...`;
+    }
+}
+
+function setDepartment(department, { updateUrl = true, scrollToCatalogue = false } = {}) {
+    const departmentKey = normalizeDepartment(department) || 'saree';
+    currentDepartment = departmentKey;
+
+    if (elements.searchInput) {
+        elements.searchInput.value = '';
+    }
+
+    updateDepartmentUI();
+    renderFilterButtons();
+    filterAndSearchProducts();
+
+    if (updateUrl) {
+        updateDepartmentUrl();
+    }
+
+    if (scrollToCatalogue) {
+        document.getElementById('catalogue-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 // State
+const DEPARTMENTS = [
+    { key: 'saree', label: 'Sarees', singular: 'Saree' },
+    { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
+];
+
 let allProducts = [];
 let filteredProducts = [];
 let wishlist = JSON.parse(localStorage.getItem('kalamkariWishlist')) || [];
 let currentProduct = null;
+let currentDepartment = getInitialDepartment();
 let isDetailZoomed = false;
 let isOverlayZoomed = false;
 
@@ -117,10 +204,12 @@ const elements = {
     searchInput: document.getElementById('search-input'),
     filtersContainer: document.getElementById('category-filters') || document.querySelector('.category-filters'),
     wishlistCount: document.getElementById('wishlist-count'),
-    viewWishlistBtn: document.getElementById('view-wishlist-btn'),
+    viewWishlistBtn: document.getElementById('view-wishlist-btn') || document.getElementById('wishlist-trigger'),
     backToCatalogueBtn: document.getElementById('back-to-catalogue'),
     backFromWishlistBtn: document.getElementById('back-from-wishlist'),
-    emptyWishlistMsg: document.getElementById('empty-wishlist'),
+    emptyWishlistMsg: document.getElementById('empty-wishlist') || document.getElementById('wishlist-empty'),
+    collectionCards: document.querySelectorAll('.collection-card'),
+    departmentButtons: document.querySelectorAll('.department-btn'),
     
     // Details View Elements
     detailImage: document.getElementById('detail-image'),
@@ -133,7 +222,7 @@ const elements = {
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
     detailFabricHighlight: document.getElementById('detail-fabric-highlight'),
-    addToWishlistBtn: document.getElementById('add-to-wishlist-btn'),
+    addToWishlistBtn: document.getElementById('add-to-wishlist-btn') || document.getElementById('wishlist-btn'),
     wishlistBtnText: document.getElementById('wishlist-btn-text')
 };
 
@@ -149,11 +238,21 @@ async function init() {
 async function fetchProducts() {
     try {
         const response = await fetch(API_URL);
-        const data = await response.json();
+        const rawData = await response.json();
+        const data = Array.isArray(rawData) ? rawData : (rawData.value || rawData.data || rawData.records || []);
         
         const getFieldValue = (item, keys) => {
+            const normalizedEntries = Object.entries(item).map(([itemKey, value]) => [
+                String(itemKey).toLowerCase().replace(/\s+/g, ' ').trim(),
+                value
+            ]);
+
             for (const key of keys) {
-                const value = item[key];
+                const normalizedKey = String(key).toLowerCase().replace(/\s+/g, ' ').trim();
+                const directValue = item[key];
+                const matchedEntry = normalizedEntries.find(([itemKey]) => itemKey === normalizedKey);
+                const value = directValue !== undefined ? directValue : matchedEntry?.[1];
+
                 if (value !== undefined && value !== null && String(value).trim()) {
                     return String(value);
                 }
@@ -163,9 +262,26 @@ async function fetchProducts() {
 
         // Clean and prepare data
         allProducts = data.map(item => {
-            const imageId = String(item['image id'] || item.imageId || '').trim();
-            const rawImageLink = String(item['image link'] || item.imageLink || '').trim();
-            const rawThumbnail = String(item.thumbnail || item[''] || '').trim();
+            const imageId = String(getFieldValue(item, [
+                'image id',
+                'Image ID',
+                'file id',
+                'File ID',
+                'imageId'
+            ])).trim();
+            const rawImageLink = String(getFieldValue(item, [
+                'image link',
+                'Image Link',
+                'drive link',
+                'Drive Link',
+                'imageLink'
+            ])).trim();
+            const rawThumbnail = String(getFieldValue(item, [
+                'thumbnail',
+                'Thumbnail',
+                'thumbnail link',
+                'Thumbnail Link'
+            ])).trim();
             const imageLink = (imageId ? buildCdnImageUrl(imageId, 1200) : '') ||
                 normalizeImageUrl(rawImageLink) ||
                 (imageId ? buildDirectDriveUrl(imageId) : '');
@@ -180,14 +296,50 @@ async function fetchProducts() {
                 return isNaN(n) ? 0 : n;
             }
 
+            const code = String(getFieldValue(item, [
+                'code',
+                'Code',
+                'style code',
+                'Style Code'
+            ])).trim();
+            const fabric = String(getFieldValue(item, [
+                'fabric',
+                'Fabric'
+            ]) || 'Pure Silk').trim();
+            const category = String(getFieldValue(item, [
+                    'category',
+                    'Category'
+                ]) || 'Uncategorized').trim();
+            const department = String(getFieldValue(item, [
+                    'department',
+                    'Department',
+                    'dept',
+                    'Dept',
+                    'collection',
+                    'Collection'
+                ])).trim();
+            const departmentKey = normalizeDepartment(getFieldValue(item, [
+                    'department',
+                    'Department',
+                    'dept',
+                    'Dept',
+                    'collection',
+                    'Collection'
+                ])) || inferDepartmentFromText(fabric, category, code) || 'saree';
+
             return {
-                code: String(item.code || '').trim(),
-                fabric: String(item.fabric || 'Pure Silk').trim(),
+                code,
+                fabric,
+                category,
+                department,
+                departmentKey,
                 price: parsePrice(item.price || item.Price || ''),
                 qty: Number(item.qty) || 0,
                 imageId,
                 imageLink,
                 thumbnail,
+                rawImageLink,
+                rawThumbnail,
                 description: String(getFieldValue(item, [
                     'description',
                     'Description',
@@ -200,7 +352,10 @@ async function fetchProducts() {
         }).filter(item => item.code);
 
         allProducts = sortProductsByPrice(allProducts);
-        filteredProducts = sortProductsByPrice(allProducts);
+        if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
+            currentDepartment = allProducts[0].departmentKey || 'saree';
+        }
+        filteredProducts = sortProductsByPrice(getDepartmentProducts());
 
         wishlist = wishlist.map(savedItem => {
             const freshItem = allProducts.find(p => p.code === savedItem.code);
@@ -210,6 +365,7 @@ async function fetchProducts() {
         updateWishlistCount();
 
         elements.spinner.style.display = 'none';
+        updateDepartmentUI();
         renderFilterButtons();
         renderProducts(filteredProducts, elements.productGrid);
         calculatePriceRanges();
@@ -262,7 +418,7 @@ function renderProducts(products, container) {
         info.innerHTML = `
     <h3 class="product-title">${product.fabric}</h3>
     ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
-    <div class="product-price">₹${formattedPrice}</div>
+    <div class="product-price">Rs. ${formattedPrice}</div>
 `;
 
         card.appendChild(imageWrapper);
@@ -278,6 +434,7 @@ function renderSimilarProducts(currentProduct) {
     if (!similarSection || !similarContainer) return;
 
     let similar = allProducts.filter(p => 
+        p.departmentKey === currentProduct.departmentKey &&
         p.fabric.toLowerCase() === currentProduct.fabric.toLowerCase() && 
         p.code !== currentProduct.code
     );
@@ -290,6 +447,7 @@ function renderSimilarProducts(currentProduct) {
         const minPrice = currentProduct.price * 0.7;
         const maxPrice = currentProduct.price * 1.3;
         higherPriced = allProducts.filter(p => 
+            p.departmentKey === currentProduct.departmentKey &&
             p.code !== currentProduct.code && 
             p.price >= minPrice && 
             p.price <= maxPrice
@@ -321,9 +479,10 @@ function renderFilterButtons() {
     elements.filtersContainer = elements.filtersContainer || document.getElementById('category-filters') || document.querySelector('.category-filters');
     if (!elements.filtersContainer) return;
 
+    const departmentProducts = getDepartmentProducts();
     const fabricMap = new Map();
-    allProducts.forEach(product => {
-        const fabric = product.fabric ? product.fabric.trim() : 'Unknown';
+    departmentProducts.forEach(product => {
+        const fabric = (product.fabric || 'Unknown').trim();
         if (!fabric) return;
 
         const key = fabric.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -335,10 +494,11 @@ function renderFilterButtons() {
 
     elements.filtersContainer.innerHTML = '';
 
+    const activeDepartment = getDepartmentConfig();
     const allButton = document.createElement('button');
     allButton.className = 'filter-btn active';
     allButton.dataset.filter = 'all';
-    allButton.innerHTML = '<span class="filter-title">ALL SAREES</span>';
+    allButton.innerHTML = `<span class="filter-title">ALL ${activeDepartment.label.toUpperCase()}</span>`;
     elements.filtersContainer.appendChild(allButton);
 
     fabricMap.forEach((entry, key) => {
@@ -397,7 +557,9 @@ function showProductDetails(product) {
     }
     
     elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
-    elements.detailFabricHighlight.textContent = product.fabric;
+    if (elements.detailFabricHighlight) {
+        elements.detailFabricHighlight.textContent = product.fabric;
+    }
     elements.detailImage.title = 'Click to zoom';
     
     updateWishlistButtonState();
@@ -545,16 +707,24 @@ function updateWishlistCount() {
 }
 
 function updateWishlistButtonState() {
-    if (!currentProduct) return;
+    if (!currentProduct || !elements.addToWishlistBtn) return;
     
     const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
     
     if (isInWishlist) {
         elements.addToWishlistBtn.classList.add('active');
-        elements.wishlistBtnText.textContent = 'Remove from Wishlist';
+        if (elements.wishlistBtnText) {
+            elements.wishlistBtnText.textContent = 'Remove from Wishlist';
+        } else {
+            elements.addToWishlistBtn.textContent = 'Remove from Wishlist';
+        }
     } else {
         elements.addToWishlistBtn.classList.remove('active');
-        elements.wishlistBtnText.textContent = 'Add to Wishlist';
+        if (elements.wishlistBtnText) {
+            elements.wishlistBtnText.textContent = 'Add to Wishlist';
+        } else {
+            elements.addToWishlistBtn.textContent = 'Add to Wishlist';
+        }
     }
 }
 
@@ -575,16 +745,18 @@ function filterAndSearchProducts() {
     const activeFilterBtn = document.querySelector('.filter-btn.active');
     const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().trim() : 'all';
     
-    filteredProducts = allProducts.filter(product => {
+    filteredProducts = getDepartmentProducts().filter(product => {
         const matchesSearch = !searchTerm ? true : (
             (product.code && product.code.toLowerCase().includes(searchTerm)) ||
             (product.fabric && product.fabric.toLowerCase().includes(searchTerm)) ||
+            (product.category && product.category.toLowerCase().includes(searchTerm)) ||
+            (product.description && product.description.toLowerCase().includes(searchTerm)) ||
             (product.price && product.price.toString().includes(searchTerm))
         );
             
         let matchesFilter = true;
         if (filterTerm !== 'all') {
-            const prodFabric = product.fabric ? product.fabric.toLowerCase().replace(/\s+/g, ' ').trim() : '';
+            const prodFabric = (product.fabric || '').toLowerCase().replace(/\s+/g, ' ').trim();
             const fTerm = filterTerm.replace(/\s+/g, ' ').trim();
             matchesFilter = prodFabric.includes(fTerm);
         }
@@ -597,21 +769,38 @@ function filterAndSearchProducts() {
 
 // Event Listeners
 function setupEventListeners() {
-    elements.backToCatalogueBtn.addEventListener('click', () => showView('catalogue'));
-    elements.backFromWishlistBtn.addEventListener('click', () => showView('catalogue'));
+    if (elements.backToCatalogueBtn) {
+        elements.backToCatalogueBtn.addEventListener('click', () => showView('catalogue'));
+    }
+    if (elements.backFromWishlistBtn) {
+        elements.backFromWishlistBtn.addEventListener('click', () => showView('catalogue'));
+    }
     
-    elements.viewWishlistBtn.addEventListener('click', () => {
-        renderWishlist();
-        showView('wishlist');
-    });
+    if (elements.viewWishlistBtn) {
+        elements.viewWishlistBtn.addEventListener('click', () => {
+            renderWishlist();
+            showView('wishlist');
+        });
+    }
     
-    elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+    if (elements.addToWishlistBtn) {
+        elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+    }
     
     if (elements.searchInput) {
         elements.searchInput.addEventListener('input', filterAndSearchProducts);
     }
+
+    document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
+        element.addEventListener('click', () => {
+            setDepartment(element.dataset.department, { scrollToCatalogue: true });
+            showView('catalogue');
+        });
+    });
     
-    elements.detailImage.addEventListener('click', () => openFullScreenImage(currentProduct));
+    if (elements.detailImage) {
+        elements.detailImage.addEventListener('click', () => openFullScreenImage(currentProduct));
+    }
     
     if (elements.overlay) {
         elements.overlay.addEventListener('click', event => {
