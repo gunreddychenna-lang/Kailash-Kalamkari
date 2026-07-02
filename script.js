@@ -1,103 +1,29 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
 
-function extractDriveFileId(url) {
-    if (!url || typeof url !== 'string') return '';
-    const match = url.match(/(?:id=|file\/d\/|\/d\/|\/document\/d\/)([\w-]+)/);
-    return match ? match[1] : '';
-}
+// === RESTORED ORIGINAL DIRECT IMAGE LINK VIEWING ===
+function getProductImageUrl(product) {
+    const rawUrl = product.imageLink || product.thumbnail || product.rawImageLink || '';
+    if (!rawUrl || typeof rawUrl !== 'string') return DEFAULT_IMAGE;
 
-function buildCdnImageUrl(fileId, width = 1200) {
-    if (!fileId) return '';
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
-}
-
-function buildDirectDriveUrl(fileId) {
-    if (!fileId) return '';
-    return `https://drive.google.com/uc?export=view&id=${fileId}`;
-}
-
-function normalizeImageUrl(url) {
-    if (!url || typeof url !== 'string') return '';
-
-    const trimmed = url.trim();
-    if (!trimmed) return '';
-
-    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    const trimmed = rawUrl.trim();
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.includes('googleusercontent.com')) {
         return trimmed;
     }
 
-    const lower = trimmed.toLowerCase();
-    if (lower.includes('googleusercontent.com') || lower.includes('photos.app.goo.gl')) {
-        return trimmed;
-    }
-
-    if (lower.includes('drive.google.com/thumbnail')) {
-        const fileId = extractDriveFileId(trimmed);
-        return fileId ? buildCdnImageUrl(fileId, 1200) : trimmed;
-    }
-
-    if (lower.includes('drive.google.com') || lower.includes('docs.google.com')) {
-        const fileId = extractDriveFileId(trimmed);
+    if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
+        const match = trimmed.match(/(?:id=|file\/d\/|\/d\/|\/document\/d\/)([\w-]+)/);
+        const fileId = match ? match[1] : '';
         if (fileId) {
-            return buildCdnImageUrl(fileId, 1200);
+            return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
         }
     }
 
-    try {
-        const parsed = new URL(trimmed);
-        if (parsed.hostname.includes('drive.google.com') || parsed.hostname.includes('docs.google.com')) {
-            const fileId = extractDriveFileId(trimmed);
-            if (fileId) {
-                return buildCdnImageUrl(fileId, 1200);
-            }
-        }
-        return trimmed;
-    } catch (e) {
-        return trimmed;
-    }
-}
-
-function getProductImageSources(product, { detail = false } = {}) {
-    const width = detail ? 2000 : 800;
-    const fileId = product.imageId ||
-        extractDriveFileId(product.imageLink) ||
-        extractDriveFileId(product.thumbnail) ||
-        extractDriveFileId(product.rawImageLink) ||
-        extractDriveFileId(product.rawThumbnail);
-    const cdnUrl = fileId ? buildCdnImageUrl(fileId, width) : '';
-    const directDriveUrl = fileId ? buildDirectDriveUrl(fileId) : '';
-    const sources = [
-        cdnUrl,
-        directDriveUrl,
-        product.rawImageLink,
-        product.rawThumbnail,
-        product.imageLink,
-        product.thumbnail,
-        DEFAULT_IMAGE
-    ];
-
-    return sources.filter((url, index) => url && sources.indexOf(url) === index);
-}
-
-function applyProductImage(img, product, options = {}) {
-    const sources = getProductImageSources(product, options);
-    let attempt = 0;
-
-    img.onerror = () => {
-        attempt += 1;
-        if (attempt < sources.length) {
-            img.src = sources[attempt];
-            return;
-        }
-        img.onerror = null;
-    };
-
-    img.src = sources[0] || DEFAULT_IMAGE;
+    return trimmed;
 }
 
 function sortProductsByPrice(products) {
-    return [...products].sort((a, b) => (a.price || 0) - (b.price || 0));
+    return [...products].sort((a, b) => (b.price || 0) - (a.price || 0));
 }
 
 function getInitialDepartment() {
@@ -106,15 +32,8 @@ function getInitialDepartment() {
 }
 
 function normalizeDepartment(value) {
-    const normalized = String(value || '')
-        .toLowerCase()
-        .replace(/[^a-z]/g, '');
-
-    if (
-        normalized.includes('dupatta') ||
-        normalized.includes('duppata') ||
-        normalized.includes('duppatta')
-    ) return 'dupatta';
+    const normalized = String(value || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (normalized.includes('dupatta') || normalized.includes('duppata') || normalized.includes('duppatta')) return 'dupatta';
     if (normalized.includes('saree') || normalized.includes('sari')) return 'saree';
     return '';
 }
@@ -128,11 +47,7 @@ function getDepartmentProducts(departmentKey = currentDepartment) {
 }
 
 function inferDepartmentFromText(...values) {
-    const combined = values
-        .filter(Boolean)
-        .map(value => String(value))
-        .join(' ');
-
+    const combined = values.filter(Boolean).map(value => String(value)).join(' ');
     return normalizeDepartment(combined);
 }
 
@@ -169,6 +84,7 @@ function setDepartment(department, { updateUrl = true, scrollToCatalogue = false
 
     if (updateUrl) {
         updateDepartmentUrl();
+        window.history.pushState({ isDepartmentSelection: true }, '');
     }
 
     if (scrollToCatalogue) {
@@ -218,6 +134,7 @@ const elements = {
     overlayImage: document.getElementById('overlay-image'),
     overlayClose: document.getElementById('overlay-close'),
     detailCode: document.getElementById('detail-code'),
+    detailStock: document.getElementById('detail-stock'), 
     detailTitle: document.getElementById('detail-title'),
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
@@ -260,35 +177,7 @@ async function fetchProducts() {
             return '';
         };
 
-        // Clean and prepare data
         allProducts = data.map(item => {
-            const imageId = String(getFieldValue(item, [
-                'image id',
-                'Image ID',
-                'file id',
-                'File ID',
-                'imageId'
-            ])).trim();
-            const rawImageLink = String(getFieldValue(item, [
-                'image link',
-                'Image Link',
-                'drive link',
-                'Drive Link',
-                'imageLink'
-            ])).trim();
-            const rawThumbnail = String(getFieldValue(item, [
-                'thumbnail',
-                'Thumbnail',
-                'thumbnail link',
-                'Thumbnail Link'
-            ])).trim();
-            const imageLink = (imageId ? buildCdnImageUrl(imageId, 1200) : '') ||
-                normalizeImageUrl(rawImageLink) ||
-                (imageId ? buildDirectDriveUrl(imageId) : '');
-            const thumbnail = (imageId ? buildCdnImageUrl(imageId, 800) : '') ||
-                normalizeImageUrl(rawThumbnail) ||
-                imageLink;
-
             function parsePrice(val) {
                 if (val === undefined || val === null || String(val).trim() === '') return 0;
                 const cleaned = String(val).replace(/[^0-9.\-]/g, '');
@@ -296,36 +185,18 @@ async function fetchProducts() {
                 return isNaN(n) ? 0 : n;
             }
 
-            const code = String(getFieldValue(item, [
-                'code',
-                'Code',
-                'style code',
-                'Style Code'
-            ])).trim();
-            const fabric = String(getFieldValue(item, [
-                'fabric',
-                'Fabric'
-            ]) || 'Pure Silk').trim();
-            const category = String(getFieldValue(item, [
-                    'category',
-                    'Category'
-                ]) || 'Uncategorized').trim();
-            const department = String(getFieldValue(item, [
-                    'department',
-                    'Department',
-                    'dept',
-                    'Dept',
-                    'collection',
-                    'Collection'
-                ])).trim();
-            const departmentKey = normalizeDepartment(getFieldValue(item, [
-                    'department',
-                    'Department',
-                    'dept',
-                    'Dept',
-                    'collection',
-                    'Collection'
-                ])) || inferDepartmentFromText(fabric, category, code) || 'saree';
+            const code = String(getFieldValue(item, ['code', 'Code', 'style code', 'Style Code'])).trim();
+            const fabric = String(getFieldValue(item, ['fabric', 'Fabric']) || 'Pure Silk').trim();
+            const category = String(getFieldValue(item, ['category', 'Category']) || 'Uncategorized').trim();
+            const department = String(getFieldValue(item, ['department', 'Department', 'dept', 'Dept', 'collection', 'Collection'])).trim();
+            const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(fabric, category, code) || 'saree';
+            
+            const imageLink = String(getFieldValue(item, ['image link', 'Image Link', 'drive link', 'Drive Link', 'imageLink', 'image', 'Image'])).trim();
+            const thumbnail = String(getFieldValue(item, ['thumbnail', 'Thumbnail', 'thumbnail link', 'Thumbnail Link'])).trim() || imageLink;
+
+            let rawQty = item.qty !== undefined && item.qty !== '' ? item.qty : (item.Qty !== undefined && item.Qty !== '' ? item.Qty : '');
+            let qty = rawQty !== '' ? Number(rawQty) : 1;
+            if (isNaN(qty)) qty = 1;
 
             return {
                 code,
@@ -334,20 +205,10 @@ async function fetchProducts() {
                 department,
                 departmentKey,
                 price: parsePrice(item.price || item.Price || ''),
-                qty: Number(item.qty) || 0,
-                imageId,
+                qty: qty,
                 imageLink,
                 thumbnail,
-                rawImageLink,
-                rawThumbnail,
-                description: String(getFieldValue(item, [
-                    'description',
-                    'Description',
-                    'product description',
-                    'Product Description',
-                    'desc',
-                    'Desc'
-                ])).trim()
+                description: String(getFieldValue(item, ['description', 'Description', 'product description', 'Product Description', 'desc', 'Desc'])).trim()
             };
         }).filter(item => item.code);
 
@@ -364,19 +225,22 @@ async function fetchProducts() {
         localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
         updateWishlistCount();
 
-        elements.spinner.style.display = 'none';
+        if (elements.spinner) elements.spinner.style.display = 'none';
         updateDepartmentUI();
         renderFilterButtons();
         renderProducts(filteredProducts, elements.productGrid);
         calculatePriceRanges();
     } catch (error) {
         console.error('Error fetching data:', error);
-        elements.spinner.textContent = 'Failed to load collection. Please try again later.';
+        if (elements.spinner) {
+            elements.spinner.textContent = 'Failed to load collection. Please try again later.';
+        }
     }
 }
 
 // Render Product Grid
 function renderProducts(products, container) {
+    if (!container) return;
     container.innerHTML = '';
     
     if (products.length === 0) {
@@ -387,9 +251,10 @@ function renderProducts(products, container) {
     products.forEach(product => {
         const card = document.createElement('div');
         card.className = 'product-card';
-        if (product.qty > 0) {
-            card.onclick = () => showProductDetails(product);
-        } else {
+        
+        card.onclick = () => showProductDetails(product);
+
+        if (product.qty <= 0) {
             card.classList.add('sold-out');
         }
 
@@ -401,7 +266,7 @@ function renderProducts(products, container) {
         const img = document.createElement('img');
         img.alt = product.fabric;
         img.loading = 'lazy';
-        applyProductImage(img, product);
+        img.src = getProductImageUrl(product);
 
         imageWrapper.appendChild(img);
 
@@ -416,10 +281,10 @@ function renderProducts(products, container) {
         info.className = 'product-info';
         const shortDescription = product.description ? `${String(product.description).trim().slice(0, 120)}${product.description.length > 120 ? '...' : ''}` : '';
         info.innerHTML = `
-    <h3 class="product-title">${product.fabric}</h3>
-    ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
-    <div class="product-price">Rs. ${formattedPrice}</div>
-`;
+            <h3 class="product-title">${product.fabric}</h3>
+            ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
+            <div class="product-price">Rs. ${formattedPrice}</div>
+        `;
 
         card.appendChild(imageWrapper);
         card.appendChild(info);
@@ -427,7 +292,7 @@ function renderProducts(products, container) {
     });
 }
 
-// Render Similar Products with 30% Price Range fallback
+// Render Similar Products
 function renderSimilarProducts(currentProduct) {
     const similarSection = document.getElementById('similar-products-section');
     const similarContainer = document.getElementById('similar-products-grid');
@@ -441,7 +306,7 @@ function renderSimilarProducts(currentProduct) {
 
     let higherPriced = similar
         .filter(p => p.price > currentProduct.price)
-        .sort((a, b) => a.price - b.price);
+        .sort((a, b) => b.price - a.price);
 
     if (higherPriced.length === 0) {
         const minPrice = currentProduct.price * 0.7;
@@ -451,7 +316,7 @@ function renderSimilarProducts(currentProduct) {
             p.code !== currentProduct.code && 
             p.price >= minPrice && 
             p.price <= maxPrice
-        ).sort((a, b) => a.price - b.price);
+        ).sort((a, b) => b.price - a.price);
     }
 
     if (higherPriced.length > 0) {
@@ -464,8 +329,8 @@ function renderSimilarProducts(currentProduct) {
 
 // Navigation & Views
 function showView(viewName) {
-    Object.values(views).forEach(v => v.classList.remove('active'));
-    views[viewName].classList.add('active');
+    Object.values(views).forEach(v => v?.classList.remove('active'));
+    views[viewName]?.classList.add('active');
     
     if (viewName === 'details') {
         document.body.classList.add('details-mode');
@@ -539,28 +404,45 @@ function formatPriceRange(prices) {
     return minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
 }
 
+// Full product details display
 function showProductDetails(product) {
     currentProduct = product;
     isDetailZoomed = false;
     updateDetailZoom();
     
-    applyProductImage(elements.detailImage, product, { detail: true });
-    
-    elements.detailCode.textContent = `Code: ${product.code}`;
-    elements.detailTitle.textContent = product.fabric;
-    
-    if (product.description) {
-        elements.detailDescription.textContent = product.description;
-        elements.detailDescription.style.display = 'block';
-    } else {
-        elements.detailDescription.style.display = 'none';
+    if (elements.detailImage) {
+        elements.detailImage.src = getProductImageUrl(product);
+        elements.detailImage.title = 'Click to zoom';
     }
     
-    elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
-    if (elements.detailFabricHighlight) {
-        elements.detailFabricHighlight.textContent = product.fabric;
+    if (elements.detailCode) elements.detailCode.textContent = `Code: ${product.code}`;
+    if (elements.detailTitle) elements.detailTitle.textContent = product.fabric;
+    
+    if (elements.detailStock) {
+        if (product.qty > 0) {
+            elements.detailStock.textContent = 'In Stock';
+            elements.detailStock.style.backgroundColor = 'rgba(42, 107, 68, 0.09)';
+            elements.detailStock.style.color = '#2A6B44';
+            elements.detailStock.style.borderColor = 'rgba(42, 107, 68, 0.18)';
+        } else {
+            elements.detailStock.textContent = 'Out of Stock';
+            elements.detailStock.style.backgroundColor = 'rgba(139, 46, 36, 0.1)';
+            elements.detailStock.style.color = '#8B2E24';
+            elements.detailStock.style.borderColor = 'rgba(139, 46, 36, 0.2)';
+        }
     }
-    elements.detailImage.title = 'Click to zoom';
+    
+    if (elements.detailDescription) {
+        if (product.description) {
+            elements.detailDescription.textContent = product.description;
+            elements.detailDescription.style.display = 'block';
+        } else {
+            elements.detailDescription.style.display = 'none';
+        }
+    }
+    
+    if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
+    if (elements.detailFabricHighlight) elements.detailFabricHighlight.textContent = product.fabric;
     
     updateWishlistButtonState();
     renderSimilarProducts(product);
@@ -571,34 +453,18 @@ function showProductDetails(product) {
 
 function updateDetailZoom() {
     if (!elements.detailImageSection || !elements.detailImage) return;
-
     if (isDetailZoomed) {
         elements.detailImageSection.classList.add('zoom-active');
-        elements.detailImage.style.transformOrigin = '50% 50%';
     } else {
         elements.detailImageSection.classList.remove('zoom-active');
-        elements.detailImage.style.transformOrigin = '50% 50%';
     }
 }
 
-function toggleDetailZoom() {
-    if (!currentProduct) return;
-    isDetailZoomed = !isDetailZoomed;
-    updateDetailZoom();
-}
-
-function moveDetailZoom(event) {
-    if (!isDetailZoomed || !elements.detailImage) return;
-    const rect = elements.detailImage.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    elements.detailImage.style.transformOrigin = `${x}% ${y}%`;
-}
-
+// Lightbox controls
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
 
-    applyProductImage(elements.overlayImage, product, { detail: true });
+    elements.overlayImage.src = getProductImageUrl(product);
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
@@ -609,7 +475,6 @@ function openFullScreenImage(product) {
 
 function closeOverlay() {
     if (!elements.overlay) return;
-
     elements.overlay.classList.add('hidden');
     if (elements.overlayImage) {
         elements.overlayImage.style.transform = 'scale(1)';
@@ -622,7 +487,6 @@ function closeOverlay() {
 
 function toggleOverlayZoom() {
     if (!elements.overlayImage) return;
-
     isOverlayZoomed = !isOverlayZoomed;
     if (isOverlayZoomed) {
         elements.overlayImage.style.transform = 'scale(2.5)';
@@ -652,7 +516,6 @@ function calculatePriceRanges() {
     
     for (const [id, fabricName] of Object.entries(categories)) {
         const categoryProducts = allProducts.filter(p => p.fabric && p.fabric.toLowerCase() === fabricName.toLowerCase());
-        
         const priceElement = document.getElementById(`price-${id}`);
         if (!priceElement) continue;
         
@@ -661,16 +524,11 @@ function calculatePriceRanges() {
             if (prices.length > 0) {
                 const minPrice = Math.min(...prices);
                 const maxPrice = Math.max(...prices);
-                
                 const formatOpts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
                 const formattedMin = new Intl.NumberFormat('en-IN', formatOpts).format(minPrice);
                 const formattedMax = new Intl.NumberFormat('en-IN', formatOpts).format(maxPrice);
                 
-                if (minPrice === maxPrice) {
-                    priceElement.textContent = formattedMin;
-                } else {
-                    priceElement.textContent = `${formattedMin} to ${formattedMax}`;
-                }
+                priceElement.textContent = minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
             } else {
                 priceElement.textContent = 'Price Unavailable';
             }
@@ -680,10 +538,9 @@ function calculatePriceRanges() {
     }
 }
 
-// Wishlist Functionality
+// Wishlist Logic
 function toggleWishlist() {
     if (!currentProduct) return;
-    
     const index = wishlist.findIndex(item => item.code === currentProduct.code);
     
     if (index === -1) {
@@ -703,44 +560,31 @@ function toggleWishlist() {
 }
 
 function updateWishlistCount() {
-    elements.wishlistCount.textContent = wishlist.length;
+    if (elements.wishlistCount) elements.wishlistCount.textContent = wishlist.length;
 }
 
 function updateWishlistButtonState() {
     if (!currentProduct || !elements.addToWishlistBtn) return;
-    
     const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
     
     if (isInWishlist) {
         elements.addToWishlistBtn.classList.add('active');
-        if (elements.wishlistBtnText) {
-            elements.wishlistBtnText.textContent = 'Remove from Wishlist';
-        } else {
-            elements.addToWishlistBtn.textContent = 'Remove from Wishlist';
-        }
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Wishlist';
     } else {
         elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) {
-            elements.wishlistBtnText.textContent = 'Add to Wishlist';
-        } else {
-            elements.addToWishlistBtn.textContent = 'Add to Wishlist';
-        }
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Wishlist';
     }
 }
 
 function renderWishlist() {
     renderProducts(wishlist, elements.wishlistGrid);
-    
-    if (wishlist.length === 0) {
-        elements.emptyWishlistMsg.style.display = 'block';
-    } else {
-        elements.emptyWishlistMsg.style.display = 'none';
+    if (elements.emptyWishlistMsg) {
+        elements.emptyWishlistMsg.style.display = wishlist.length === 0 ? 'block' : 'none';
     }
 }
 
-// Search and Filter
+// Filters implementation
 function filterAndSearchProducts() {
-    // FIX: Safely check if searchInput exists in HTML before accessing .value
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
     const activeFilterBtn = document.querySelector('.filter-btn.active');
     const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().trim() : 'all';
@@ -767,14 +611,10 @@ function filterAndSearchProducts() {
     renderProducts(filteredProducts, elements.productGrid);
 }
 
-// Event Listeners
+// Event Bindings
 function setupEventListeners() {
-    if (elements.backToCatalogueBtn) {
-        elements.backToCatalogueBtn.addEventListener('click', () => showView('catalogue'));
-    }
-    if (elements.backFromWishlistBtn) {
-        elements.backFromWishlistBtn.addEventListener('click', () => showView('catalogue'));
-    }
+    if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', () => showView('catalogue'));
+    if (elements.backFromWishlistBtn) elements.backFromWishlistBtn.addEventListener('click', () => showView('catalogue'));
     
     if (elements.viewWishlistBtn) {
         elements.viewWishlistBtn.addEventListener('click', () => {
@@ -783,13 +623,8 @@ function setupEventListeners() {
         });
     }
     
-    if (elements.addToWishlistBtn) {
-        elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
-    }
-    
-    if (elements.searchInput) {
-        elements.searchInput.addEventListener('input', filterAndSearchProducts);
-    }
+    if (elements.addToWishlistBtn) elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+    if (elements.searchInput) elements.searchInput.addEventListener('input', filterAndSearchProducts);
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
@@ -816,7 +651,16 @@ function setupEventListeners() {
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') closeOverlay();
     });
+
+    window.addEventListener('popstate', () => {
+        if (views.catalogue?.classList.contains('active')) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+    
+    // === CONSOLE WARNING FIXED HERE ===
+    // Swapped from pushState to replaceState during initialization setup context
+    window.history.replaceState({ isDepartmentSelection: true }, '', window.location.href);
 }
 
-// Boot up
 document.addEventListener('DOMContentLoaded', init);

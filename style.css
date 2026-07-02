@@ -169,7 +169,6 @@ h1 {
     z-index: 2;
 }
 
-
 .wishlist-trigger:hover {
     background-color: var(--color-madder);
     color: var(--color-ghee);

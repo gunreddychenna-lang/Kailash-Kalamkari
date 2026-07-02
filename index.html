@@ -7,6 +7,9 @@
 
 <title>Kalamkari Sarees</title>
 
+<!-- FIX: Prevents the 404 Favicon error from cluttering your terminal logs and slowing local requests -->
+<link rel="icon" href="data:,">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
@@ -205,10 +208,12 @@ class="product-grid">
 
         <div class="product-image-section">
 
+            <!-- OPTIMIZATION: Added decoding="async" so large saree images do not block page layout rendering -->
             <img
                 id="detail-image"
                 src=""
                 alt=""
+                decoding="async"
             >
 
         </div>
@@ -218,18 +223,9 @@ class="product-grid">
         <div class="product-info-section">
 
             <div class="product-tags">
-
-                <span
-                    id="detail-code"
-                    class="tag code-tag">
-                </span>
-
-                <span
-                    id="detail-stock"
-                    class="tag stock-tag">
-                </span>
-
-            </div>
+    <span id="detail-code" class="tag code-tag"></span>
+    <span id="detail-stock" class="tag stock-tag"></span> <!-- This one -->
+</div>
 
             <h2
                 id="detail-title"
@@ -429,10 +425,12 @@ class="product-grid">
 
         </button>
 
+        <!-- OPTIMIZATION: Added decoding="async" to unpack the overlay zoom image effortlessly in the background -->
         <img
             id="overlay-image"
             src=""
-            alt="">
+            alt=""
+            decoding="async">
 
         <p class="overlay-hint">
 
@@ -451,5 +449,3 @@ class="product-grid">
 </body>
 
 </html>
-
-
