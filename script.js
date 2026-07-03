@@ -1,25 +1,41 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
 
-// === RESTORED ORIGINAL DIRECT IMAGE LINK VIEWING ===
-function getProductImageUrl(product) {
-    const rawUrl = product.imageLink || product.thumbnail || product.rawImageLink || '';
+// === BULLETPROOF HIGH-SPEED IMAGE LINK VIEWING ===
+// === FIXED HIGH-SPEED IMAGE LINK VIEWING ===
+function getProductImageUrl(product, width = 800) {
+    // If we have a direct file ID, use the high-performance Google CDN URL
+    if (product && product.imageId && product.imageId.length >= 25) {
+        return `https://lh3.googleusercontent.com/d/${product.imageId}=w${width}`;
+    }
+
+    const rawUrl = product ? (product.imageLink || product.thumbnail || product.rawImageLink || '') : '';
     if (!rawUrl || typeof rawUrl !== 'string') return DEFAULT_IMAGE;
 
     const trimmed = rawUrl.trim();
-    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.includes('googleusercontent.com')) {
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
         return trimmed;
     }
 
-    if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
-        const match = trimmed.match(/(?:id=|file\/d\/|\/d\/|\/document\/d\/)([\w-]+)/);
-        const fileId = match ? match[1] : '';
-        if (fileId) {
-            return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+    // Try to extract File ID from any Google Drive patterns (including relative/partial/query URLs)
+    const idMatch = trimmed.match(/id=([\w-]{25,50})/) || 
+                    trimmed.match(/\/d\/([\w-]{25,50})/) || 
+                    trimmed.match(/[\w-]{25,50}/);
+                    
+    if (idMatch) {
+        const fileId = idMatch[1] || idMatch[0];
+        if (fileId && fileId.length >= 25) {
+            return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
         }
     }
 
-    return trimmed;
+    // If it's already a full URL but didn't match the ID filters, make sure it has a protocol
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+    }
+    
+    // Fallback if protocol is missing entirely
+    return trimmed.includes('drive.google.com') ? 'https://' + trimmed : trimmed;
 }
 
 function sortProductsByPrice(products) {
@@ -193,6 +209,7 @@ async function fetchProducts() {
             
             const imageLink = String(getFieldValue(item, ['image link', 'Image Link', 'drive link', 'Drive Link', 'imageLink', 'image', 'Image'])).trim();
             const thumbnail = String(getFieldValue(item, ['thumbnail', 'Thumbnail', 'thumbnail link', 'Thumbnail Link'])).trim() || imageLink;
+            const imageId = String(getFieldValue(item, ['image id', 'Image ID', 'file id', 'File ID', 'imageId', 'fileId'])).trim();
 
             let rawQty = item.qty !== undefined && item.qty !== '' ? item.qty : (item.Qty !== undefined && item.Qty !== '' ? item.Qty : '');
             let qty = rawQty !== '' ? Number(rawQty) : 1;
@@ -208,6 +225,7 @@ async function fetchProducts() {
                 qty: qty,
                 imageLink,
                 thumbnail,
+                imageId,
                 description: String(getFieldValue(item, ['description', 'Description', 'product description', 'Product Description', 'desc', 'Desc'])).trim()
             };
         }).filter(item => item.code);
@@ -411,7 +429,7 @@ function showProductDetails(product) {
     updateDetailZoom();
     
     if (elements.detailImage) {
-        elements.detailImage.src = getProductImageUrl(product);
+        elements.detailImage.src = getProductImageUrl(product, 2000);
         elements.detailImage.title = 'Click to zoom';
     }
     
@@ -464,7 +482,7 @@ function updateDetailZoom() {
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
 
-    elements.overlayImage.src = getProductImageUrl(product);
+    elements.overlayImage.src = getProductImageUrl(product, 2000);
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
@@ -559,30 +577,6 @@ function toggleWishlist() {
     updateWishlistButtonState();
 }
 
-function updateWishlistCount() {
-    if (elements.wishlistCount) elements.wishlistCount.textContent = wishlist.length;
-}
-
-function updateWishlistButtonState() {
-    if (!currentProduct || !elements.addToWishlistBtn) return;
-    const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
-    
-    if (isInWishlist) {
-        elements.addToWishlistBtn.classList.add('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Wishlist';
-    } else {
-        elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Wishlist';
-    }
-}
-
-function renderWishlist() {
-    renderProducts(wishlist, elements.wishlistGrid);
-    if (elements.emptyWishlistMsg) {
-        elements.emptyWishlistMsg.style.display = wishlist.length === 0 ? 'block' : 'none';
-    }
-}
-
 // Filters implementation
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
@@ -609,6 +603,30 @@ function filterAndSearchProducts() {
     });
     
     renderProducts(filteredProducts, elements.productGrid);
+}
+
+function updateWishlistCount() {
+    if (elements.wishlistCount) elements.wishlistCount.textContent = wishlist.length;
+}
+
+function updateWishlistButtonState() {
+    if (!currentProduct || !elements.addToWishlistBtn) return;
+    const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
+    
+    if (isInWishlist) {
+        elements.addToWishlistBtn.classList.add('active');
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Wishlist';
+    } else {
+        elements.addToWishlistBtn.classList.remove('active');
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Wishlist';
+    }
+}
+
+function renderWishlist() {
+    renderProducts(wishlist, elements.wishlistGrid);
+    if (elements.emptyWishlistMsg) {
+        elements.emptyWishlistMsg.style.display = wishlist.length === 0 ? 'block' : 'none';
+    }
 }
 
 // Event Bindings
@@ -658,8 +676,6 @@ function setupEventListeners() {
         }
     });
     
-    // === CONSOLE WARNING FIXED HERE ===
-    // Swapped from pushState to replaceState during initialization setup context
     window.history.replaceState({ isDepartmentSelection: true }, '', window.location.href);
 }
 
