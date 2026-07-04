@@ -3,7 +3,7 @@ const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/s
 
 // === BULLETPROOF HIGH-SPEED IMAGE LINK VIEWING ===
 // === FIXED HIGH-SPEED IMAGE LINK VIEWING ===
-function getProductImageUrl(product, width = 800) {
+function getProductImageUrl(product, width = 450) {
     // If we have a direct file ID, use the high-performance Google CDN URL
     if (product && product.imageId && product.imageId.length >= 25) {
         return `https://lh3.googleusercontent.com/d/${product.imageId}=w${width}`;
