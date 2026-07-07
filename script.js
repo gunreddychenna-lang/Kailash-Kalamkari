@@ -1,42 +1,101 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
 
-// === BULLETPROOF HIGH-SPEED IMAGE LINK VIEWING ===
-// === FIXED HIGH-SPEED IMAGE LINK VIEWING ===
-function getProductImageUrl(product, width = 800) {
-    // If we have a direct file ID, use the high-performance Google CDN URL
-    if (product && product.imageId && product.imageId.length >= 25) {
-        return `https://lh3.googleusercontent.com/d/${product.imageId}=w${width}`;
-    }
-
-    const rawUrl = product ? (product.imageLink || product.thumbnail || product.rawImageLink || '') : '';
-    if (!rawUrl || typeof rawUrl !== 'string') return DEFAULT_IMAGE;
-
-    const trimmed = rawUrl.trim();
-    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
-        return trimmed;
-    }
-
-    // Try to extract File ID from any Google Drive patterns (including relative/partial/query URLs)
-    const idMatch = trimmed.match(/id=([\w-]{25,50})/) || 
-                    trimmed.match(/\/d\/([\w-]{25,50})/) || 
-                    trimmed.match(/[\w-]{25,50}/);
-                    
-    if (idMatch) {
-        const fileId = idMatch[1] || idMatch[0];
-        if (fileId && fileId.length >= 25) {
-            return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
-        }
-    }
-
-    // If it's already a full URL but didn't match the ID filters, make sure it has a protocol
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-        return trimmed;
+// Helper: Extract Google Drive File ID from various formats
+function extractDriveFileId(urlOrId) {
+    if (!urlOrId) return '';
+    
+    // Already a file ID (25+ chars of alphanumeric, dash, underscore)
+    if (/^[-\w]{25,}$/.test(urlOrId)) {
+        return urlOrId;
     }
     
-    // Fallback if protocol is missing entirely
-    return trimmed.includes('drive.google.com') ? 'https://' + trimmed : trimmed;
+    // Extract from various Google URL formats
+    const idMatch = urlOrId.match(/[-\w]{25,}/);
+    return idMatch ? idMatch[0] : '';
 }
+
+// Helper: Build Google CDN image URL (fastest, excellent CORS support)
+function buildCdnImageUrl(fileId, width = 800) {
+    if (!fileId) return '';
+    // Standard Google Images CDN format
+    return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
+}
+
+// Helper: Build direct Google Drive URL (fallback)
+function buildDirectDriveUrl(fileId) {
+    if (!fileId) return '';
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
+}
+
+// Helper: Build Google Drive download URL (sometimes has better CORS support)
+function buildDriveDownloadUrl(fileId) {
+    if (!fileId) return '';
+    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
+// Helper: Build proxy URL for Google Drive (best CORS support)
+function buildProxyImageUrl(fileId, width = 800) {
+    if (!fileId) return '';
+    // Using public proxy services that work with Google Drive
+    return `https://images.weserv.nl/?url=https://drive.google.com/uc?export=view%26id=${fileId}&w=${width}&fit=cover`;
+}
+
+// Main: Get product image with 7-tier fallback system
+function getProductImageUrl(product, width = 800) {
+    if (!product) return DEFAULT_IMAGE;
+
+    // Try to get a file ID from various possible fields
+    const imageLink = product.imageLink || product["image link"] || '';
+    const imageId = product.imageId || product["image id"] || '';
+    const image = product.image || '';
+    const thumbnail = product.thumbnail || '';
+
+    // Extract File ID from any source
+    const fileId = extractDriveFileId(imageId) || 
+                   extractDriveFileId(imageLink) || 
+                   extractDriveFileId(image) ||
+                   extractDriveFileId(thumbnail);
+
+    // Build list of URLs to try (7-tier fallback system)
+    const sources = [];
+
+    // Tier 1: Proxy URL with CORS support (BEST - most reliable)
+    if (fileId) {
+        sources.push(buildProxyImageUrl(fileId, width));
+    }
+
+    // Tier 2: Google CDN URL
+    if (fileId) {
+        sources.push(buildCdnImageUrl(fileId, width));
+    }
+
+    // Tier 3: Direct Google Drive URL - export=view
+    if (fileId) {
+        sources.push(buildDirectDriveUrl(fileId));
+    }
+
+    // Tier 4: Google Drive download URL (export=download)
+    if (fileId) {
+        sources.push(buildDriveDownloadUrl(fileId));
+    }
+
+    // Tier 5: Original imageLink if it's a full URL
+    if (imageLink && imageLink.startsWith('http')) {
+        sources.push(imageLink);
+    }
+
+    // Tier 6: Thumbnail URL if available
+    if (thumbnail && thumbnail.startsWith('http')) {
+        sources.push(thumbnail);
+    }
+
+    // Tier 7: Default placeholder
+    sources.push(DEFAULT_IMAGE);
+
+    // Return first valid source (browser will handle fallback if image fails to load)
+    return sources.find(url => url) || DEFAULT_IMAGE;
+}   
 
 function sortProductsByPrice(products) {
     return [...products].sort((a, b) => (b.price || 0) - (a.price || 0));
@@ -82,11 +141,11 @@ function updateDepartmentUI() {
     });
 
     if (elements.searchInput) {
-        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by code, fabric or colour...`;
+        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by fabric name, design or colour...`;
     }
 }
 
-function setDepartment(department, { updateUrl = true, scrollToCatalogue = false } = {}) {
+function setDepartment(department, { updateUrl = true } = {}) {
     const departmentKey = normalizeDepartment(department) || 'saree';
     currentDepartment = departmentKey;
 
@@ -99,16 +158,21 @@ function setDepartment(department, { updateUrl = true, scrollToCatalogue = false
     filterAndSearchProducts();
 
     if (updateUrl) {
-        updateDepartmentUrl();
-        window.history.pushState({ isDepartmentSelection: true }, '');
-    }
-
-    if (scrollToCatalogue) {
-        document.getElementById('catalogue-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Build the new URL for this department
+        const url = new URL(window.location);
+        url.searchParams.set('department', currentDepartment);
+        url.hash = '';
+        
+        // Push to history for back button navigation
+        history.pushState(
+            { type: 'department', department: currentDepartment },
+            '',
+            url
+        );
     }
 }
 
-// State
+// State Management
 const DEPARTMENTS = [
     { key: 'saree', label: 'Sarees', singular: 'Saree' },
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
@@ -121,8 +185,9 @@ let currentProduct = null;
 let currentDepartment = getInitialDepartment();
 let isDetailZoomed = false;
 let isOverlayZoomed = false;
-
-// DOM Elements
+let navigationStack = [];
+let openedFromShare = false;
+// DOM Elements Link Map
 const views = {
     catalogue: document.getElementById('catalogue-view'),
     details: document.getElementById('product-details-view'),
@@ -136,10 +201,10 @@ const elements = {
     searchInput: document.getElementById('search-input'),
     filtersContainer: document.getElementById('category-filters') || document.querySelector('.category-filters'),
     wishlistCount: document.getElementById('wishlist-count'),
-    viewWishlistBtn: document.getElementById('view-wishlist-btn') || document.getElementById('wishlist-trigger'),
+    viewWishlistBtn: document.getElementById('wishlist-trigger'),
     backToCatalogueBtn: document.getElementById('back-to-catalogue'),
     backFromWishlistBtn: document.getElementById('back-from-wishlist'),
-    emptyWishlistMsg: document.getElementById('empty-wishlist') || document.getElementById('wishlist-empty'),
+    emptyWishlistMsg: document.getElementById('wishlist-empty'),
     collectionCards: document.querySelectorAll('.collection-card'),
     departmentButtons: document.querySelectorAll('.department-btn'),
     
@@ -155,8 +220,9 @@ const elements = {
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
     detailFabricHighlight: document.getElementById('detail-fabric-highlight'),
-    addToWishlistBtn: document.getElementById('add-to-wishlist-btn') || document.getElementById('wishlist-btn'),
-    wishlistBtnText: document.getElementById('wishlist-btn-text')
+    addToWishlistBtn: document.getElementById('wishlist-btn'),
+    wishlistBtnText: document.getElementById('wishlist-btn-text'),
+    buyNowBtn: document.getElementById("buy-now-btn"),
 };
 
 // Initialize
@@ -164,12 +230,52 @@ async function init() {
     updateWishlistCount();
     setupEventListeners();
     await fetchProducts();
+    
+    const params = new URLSearchParams(window.location.search);
+    const hashParam = window.location.hash;
+    const departmentParam = params.get('department');
+    
+    // Detect if opening a shared product link directly
+    const isDirectProductLink = hashParam.startsWith('#product/');
+    
+    if (isDirectProductLink) {
+        const code = decodeURIComponent(hashParam.replace('#product/', ''));
+        const product = allProducts.find(x => x.code === code);
+        
+        if (product) {
+            currentDepartment = product.departmentKey;
+            
+            // For shared links, create history: department → product
+            // This ensures back button takes them through history naturally
+            if (history.length <= 1) {
+                // Likely a direct link, create intermediate history entry
+                const deptUrl = new URL(window.location);
+                deptUrl.searchParams.set('department', currentDepartment);
+                deptUrl.hash = '';
+                history.replaceState(
+                    { type: 'department', department: currentDepartment },
+                    '',
+                    deptUrl
+                );
+            }
+            
+            showProductDetails(product);
+        }
+    } else {
+        // Normal catalog view
+        const department = departmentParam || 'saree';
+        setDepartment(department, { updateUrl: false });
+        updateDepartmentUI();
+    }
+    
     renderFilterButtons();
+    window.addEventListener('popstate', handlePopState);
 }
 
-// Fetch Data
+// Fetch Data from Google Sheet JSON Endpoint
 async function fetchProducts() {
     try {
+        if (elements.spinner) elements.spinner.style.display = 'block';
         const response = await fetch(API_URL);
         const rawData = await response.json();
         const data = Array.isArray(rawData) ? rawData : (rawData.value || rawData.data || rawData.records || []);
@@ -201,9 +307,10 @@ async function fetchProducts() {
                 return isNaN(n) ? 0 : n;
             }
 
-            const code = String(getFieldValue(item, ['code', 'Code', 'style code', 'Style Code'])).trim();
-            const fabric = String(getFieldValue(item, ['fabric', 'Fabric']) || 'Pure Silk').trim();
-            const category = String(getFieldValue(item, ['category', 'Category']) || 'Uncategorized').trim();
+            // Maps cleanly to 'Fabric Name' header row properties directly
+            const fabric = String(getFieldValue(item, ['fabric name', 'Fabric Name', 'fabric', 'Fabric']) || 'Pure Handcrafted Silk').trim();
+            const code = String(getFieldValue(item, ['code', 'Code', 'style code', 'Style Code']) || fabric).trim();
+            const category = String(getFieldValue(item, ['category', 'Category']) || 'Traditional').trim();
             const department = String(getFieldValue(item, ['department', 'Department', 'dept', 'Dept', 'collection', 'Collection'])).trim();
             const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(fabric, category, code) || 'saree';
             
@@ -217,6 +324,7 @@ async function fetchProducts() {
 
             return {
                 code,
+                title: getFieldValue(item, ['title', 'Title', 'Product Name', 'description']) || fabric,
                 fabric,
                 category,
                 department,
@@ -228,16 +336,45 @@ async function fetchProducts() {
                 imageId,
                 description: String(getFieldValue(item, ['description', 'Description', 'product description', 'Product Description', 'desc', 'Desc'])).trim()
             };
-        }).filter(item => item.code);
+        }).filter(item => (item.code || item.fabric) && item.price > 0);
 
         allProducts = sortProductsByPrice(allProducts);
+        
+        // Debug logging for image URLs
+        if (allProducts.length > 0) {
+            const firstProd = allProducts[0];
+            console.log('%c🖼️ FIRST PRODUCT DATA:', 'color: #FF6B6B; font-weight: bold; font-size: 14px', {
+                code: firstProd.code,
+                imageLink: firstProd.imageLink,
+                thumbnail: firstProd.thumbnail,
+                imageId: firstProd.imageId,
+                rawImageLink: firstProd.imageLink ? firstProd.imageLink.substring(0, 100) : 'EMPTY'
+            });
+            
+            const fileId = extractDriveFileId(firstProd.imageId || firstProd.imageLink);
+            console.log('%c📝 EXTRACTED FILE ID:', 'color: #4ECDC4; font-weight: bold; font-size: 14px', fileId || '❌ FAILED TO EXTRACT');
+            
+            if (fileId) {
+                const urls = {
+                    'Proxy (CORS)': buildProxyImageUrl(fileId, 800),
+                    'Google CDN': buildCdnImageUrl(fileId, 800),
+                    'Google Drive Direct': buildDirectDriveUrl(fileId),
+                    'Google Drive Download': buildDriveDownloadUrl(fileId)
+                };
+                console.log('%c🔗 GENERATED URLS:', 'color: #95E1D3; font-weight: bold; font-size: 14px', urls);
+                
+                const finalUrl = getProductImageUrl(firstProd);
+                console.log('%c✅ FINAL URL USED:', 'color: #F38181; font-weight: bold; font-size: 14px', finalUrl.substring(0, 150) + '...');
+            }
+        }
+        
         if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
             currentDepartment = allProducts[0].departmentKey || 'saree';
         }
         filteredProducts = sortProductsByPrice(getDepartmentProducts());
 
         wishlist = wishlist.map(savedItem => {
-            const freshItem = allProducts.find(p => p.code === savedItem.code);
+            const freshItem = allProducts.find(p => p.code === savedItem.code || p.fabric === savedItem.fabric);
             return freshItem || savedItem;
         });
         localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
@@ -246,71 +383,108 @@ async function fetchProducts() {
         if (elements.spinner) elements.spinner.style.display = 'none';
         updateDepartmentUI();
         renderFilterButtons();
-        renderProducts(filteredProducts, elements.productGrid);
+        filterAndSearchProducts();
         calculatePriceRanges();
     } catch (error) {
         console.error('Error fetching data:', error);
         if (elements.spinner) {
-            elements.spinner.textContent = 'Failed to load collection. Please try again later.';
+            elements.spinner.textContent = 'Failed to load collection. Please verify column headings setup.';
         }
     }
 }
 
-// Render Product Grid
+// Render Grid
+// Replace the renderProducts function in script.js with this:
 function renderProducts(products, container) {
     if (!container) return;
     container.innerHTML = '';
     
     if (products.length === 0) {
-        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted);">No products found matching your criteria.</p>';
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #888;">No items discovered.</p>';
         return;
     }
     
     products.forEach(product => {
         const card = document.createElement('div');
         card.className = 'product-card';
-        
         card.onclick = () => showProductDetails(product);
 
-        if (product.qty <= 0) {
-            card.classList.add('sold-out');
-        }
-
+        const imgUrl = getProductImageUrl(product);
         const formattedPrice = new Intl.NumberFormat('en-IN').format(product.price);
 
-        const imageWrapper = document.createElement('div');
-        imageWrapper.className = 'product-image-wrapper';
-
-        const img = document.createElement('img');
-        img.alt = product.fabric;
-        img.loading = 'lazy';
-        img.src = getProductImageUrl(product);
-
-        imageWrapper.appendChild(img);
-
-        if (product.qty <= 0) {
-            const badge = document.createElement('span');
-            badge.className = 'sold-out-badge';
-            badge.textContent = 'SOLD OUT';
-            imageWrapper.appendChild(badge);
-        }
-
-        const info = document.createElement('div');
-        info.className = 'product-info';
-        const shortDescription = product.description ? `${String(product.description).trim().slice(0, 120)}${product.description.length > 120 ? '...' : ''}` : '';
-        info.innerHTML = `
-            <h3 class="product-title">${product.fabric}</h3>
-            ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
-            <div class="product-price">Rs. ${formattedPrice}</div>
+        card.innerHTML = `
+            <div class="product-image-wrapper">
+                <img src="${imgUrl}" alt="${product.title}" loading="lazy" data-product-code="${product.code}">
+                ${product.qty <= 0 ? '<span class="sold-out-badge">SOLD OUT</span>' : ''}
+            </div>
+            <div class="product-info">
+                <h3 class="product-title">${product.title}</h3>
+                <p class="product-card-description">${product.description ? product.description.substring(0, 60) + '...' : ''}</p>
+                <div class="product-price">Rs. ${formattedPrice}</div>
+            </div>
         `;
-
-        card.appendChild(imageWrapper);
-        card.appendChild(info);
+        
+        // Add error handler for image
+        const img = card.querySelector('img');
+        if (img) {
+            let attemptCount = 0;
+            const urlChain = [];
+            
+            img.onerror = function() {
+                attemptCount++;
+                const productCode = this.dataset.productCode;
+                const prod = allProducts.find(p => p.code === productCode);
+                
+                if (prod && attemptCount === 1) {
+                    // Build the full chain on first error
+                    const fileId = extractDriveFileId(prod.imageId || prod["image id"]);
+                    if (fileId) {
+                        urlChain.push(
+                            buildProxyImageUrl(fileId, 800),
+                            buildCdnImageUrl(fileId, 800),
+                            buildDirectDriveUrl(fileId),
+                            buildDriveDownloadUrl(fileId),
+                            DEFAULT_IMAGE
+                        );
+                    } else {
+                        urlChain.push(DEFAULT_IMAGE);
+                    }
+                }
+                
+                // Try next URL in chain
+                if (urlChain.length > attemptCount) {
+                    this.src = urlChain[attemptCount];
+                } else {
+                    this.src = DEFAULT_IMAGE;
+                }
+            };
+        }
+        
         container.appendChild(card);
     });
 }
 
-// Render Similar Products
+// Ensure the detail view image updates correctly:
+function showProductDetails(product) {
+    currentProduct = product;
+    window.location.hash = `product/${encodeURIComponent(product.code)}`;
+    
+    // Explicitly set the source
+    const imgEl = document.getElementById('detail-image');
+    if (imgEl) {
+        imgEl.src = getProductImageUrl(product);
+        imgEl.onerror = () => { imgEl.src = DEFAULT_IMAGE; };
+    }
+    
+    document.getElementById('detail-title').textContent = product.title;
+    document.getElementById('detail-code').textContent = `Style: ${product.code}`;
+    document.getElementById('detail-description').textContent = product.description;
+    document.getElementById('detail-price').textContent = `Rs. ${new Intl.NumberFormat('en-IN').format(product.price)}`;
+    
+    showView('details');
+}
+
+// Render Curated Connections
 function renderSimilarProducts(currentProduct) {
     const similarSection = document.getElementById('similar-products-section');
     const similarContainer = document.getElementById('similar-products-grid');
@@ -345,7 +519,6 @@ function renderSimilarProducts(currentProduct) {
     }
 }
 
-// Navigation & Views
 function showView(viewName) {
     Object.values(views).forEach(v => v?.classList.remove('active'));
     views[viewName]?.classList.add('active');
@@ -422,28 +595,64 @@ function formatPriceRange(prices) {
     return minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
 }
 
-// Full product details display
-function showProductDetails(product) {
+// Display Full Details Dashboard Panel
+function showProductDetails(product, { skipHistoryPush = false } = {}) {
     currentProduct = product;
+    
+    // Only push to history if not coming from back navigation
+    if (!skipHistoryPush) {
+        updateProductURL(product);
+    }
     isDetailZoomed = false;
     updateDetailZoom();
     
     if (elements.detailImage) {
         elements.detailImage.src = getProductImageUrl(product, 2000);
-        elements.detailImage.title = 'Click to zoom';
+        
+        // Set up onerror handler to try fallback options if primary fails
+        let attemptCount = 0;
+        const urlChain = [];
+        
+        // Build URL chain on first load
+        const fileId = extractDriveFileId(product.imageId || product["image id"]);
+        if (fileId) {
+            urlChain.push(
+                buildProxyImageUrl(fileId, 2000),
+                buildCdnImageUrl(fileId, 2000),
+                buildDirectDriveUrl(fileId),
+                buildDriveDownloadUrl(fileId),
+                DEFAULT_IMAGE
+            );
+        } else {
+            urlChain.push(DEFAULT_IMAGE);
+        }
+        
+        elements.detailImage.onerror = function () {
+            attemptCount++;
+            // Try next URL in chain
+            if (urlChain.length > attemptCount) {
+                this.src = urlChain[attemptCount];
+            } else {
+                this.src = DEFAULT_IMAGE;
+                console.warn(`⚠️ Image failed to load after ${attemptCount} attempts for product:`, product.code);
+            }
+        };
+
+        elements.detailImage.title = 'Click to view full screen texture';
     }
     
-    if (elements.detailCode) elements.detailCode.textContent = `Code: ${product.code}`;
-    if (elements.detailTitle) elements.detailTitle.textContent = product.fabric;
+    // Updates UI dynamically to render clean Fabric labels perfectly
+    if (elements.detailCode) elements.detailCode.textContent = `Fabric: ${product.fabric}`;
+    if (elements.detailTitle) elements.detailTitle.textContent = product.title;
     
     if (elements.detailStock) {
         if (product.qty > 0) {
-            elements.detailStock.textContent = 'In Stock';
+            elements.detailStock.textContent = 'Ready to dispatch';
             elements.detailStock.style.backgroundColor = 'rgba(42, 107, 68, 0.09)';
             elements.detailStock.style.color = '#2A6B44';
             elements.detailStock.style.borderColor = 'rgba(42, 107, 68, 0.18)';
         } else {
-            elements.detailStock.textContent = 'Out of Stock';
+            elements.detailStock.textContent = 'Acquired / Sold Out';
             elements.detailStock.style.backgroundColor = 'rgba(139, 46, 36, 0.1)';
             elements.detailStock.style.color = '#8B2E24';
             elements.detailStock.style.borderColor = 'rgba(139, 46, 36, 0.2)';
@@ -464,9 +673,13 @@ function showProductDetails(product) {
     
     updateWishlistButtonState();
     renderSimilarProducts(product);
-    showView('details');
+    showView("details");
+
+if (!navigationStack.length) {
+    navigationStack.push(currentDepartment);
+}
     
-    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function updateDetailZoom() {
@@ -478,11 +691,39 @@ function updateDetailZoom() {
     }
 }
 
-// Lightbox controls
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
 
     elements.overlayImage.src = getProductImageUrl(product, 2000);
+    
+    // Set up onerror handler to try fallback options if primary fails
+    let attemptCount = 0;
+    const urlChain = [];
+    
+    // Build URL chain on first load
+    const fileId = extractDriveFileId(product.imageId || product["image id"]);
+    if (fileId) {
+        urlChain.push(
+            buildProxyImageUrl(fileId, 2000),
+            buildCdnImageUrl(fileId, 2000),
+            buildDirectDriveUrl(fileId),
+            buildDriveDownloadUrl(fileId),
+            DEFAULT_IMAGE
+        );
+    } else {
+        urlChain.push(DEFAULT_IMAGE);
+    }
+    
+    elements.overlayImage.onerror = function () {
+        attemptCount++;
+        // Try next URL in chain
+        if (urlChain.length > attemptCount) {
+            this.src = urlChain[attemptCount];
+        } else {
+            this.src = DEFAULT_IMAGE;
+        }
+    };
+    
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
@@ -556,10 +797,10 @@ function calculatePriceRanges() {
     }
 }
 
-// Wishlist Logic
+// Wishlist Controls
 function toggleWishlist() {
     if (!currentProduct) return;
-    const index = wishlist.findIndex(item => item.code === currentProduct.code);
+    const index = wishlist.findIndex(item => item.code === currentProduct.code || item.fabric === currentProduct.fabric);
     
     if (index === -1) {
         wishlist.push(currentProduct);
@@ -570,14 +811,46 @@ function toggleWishlist() {
     try {
         localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
     } catch (e) {
-        console.error("Error saving wishlist to local storage", e);
+        console.error("Error updating local storage key data", e);
     }
     
     updateWishlistCount();
     updateWishlistButtonState();
 }
 
-// Filters implementation
+// Handle Buy Now button click
+function handleBuyNow() {
+    if (!currentProduct) {
+        console.warn('No product selected for purchase');
+        return;
+    }
+    
+    // Prepare order data
+    const orderData = {
+        productCode: currentProduct.code,
+        productName: currentProduct.title,
+        fabric: currentProduct.fabric,
+        price: currentProduct.price,
+        quantity: 1,
+        timestamp: new Date().toISOString()
+    };
+    
+    console.log('📦 Purchase initiated:', orderData);
+    
+    // TODO: Integrate payment gateway here
+    // Examples:
+    // - Razorpay
+    // - PayPal
+    // - Stripe
+    // - Google Pay
+    // - PhonePe
+    
+    // For now, show a message
+    const message = `Processing purchase for ${currentProduct.title}\nAmount: ₹${currentProduct.price}\n\nPayment gateway will be integrated soon!`;
+    alert(message);
+}
+
+// Global Filter engine parsing
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
     const activeFilterBtn = document.querySelector('.filter-btn.active');
@@ -611,14 +884,14 @@ function updateWishlistCount() {
 
 function updateWishlistButtonState() {
     if (!currentProduct || !elements.addToWishlistBtn) return;
-    const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
+    const isInWishlist = wishlist.some(item => item.code === currentProduct.code || item.fabric === currentProduct.fabric);
     
     if (isInWishlist) {
         elements.addToWishlistBtn.classList.add('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Wishlist';
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Gallery';
     } else {
         elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Wishlist';
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Acquire into Wishlist';
     }
 }
 
@@ -629,10 +902,30 @@ function renderWishlist() {
     }
 }
 
-// Event Bindings
+// Event Listeners Map Setup
 function setupEventListeners() {
-    if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', () => showView('catalogue'));
-    if (elements.backFromWishlistBtn) elements.backFromWishlistBtn.addEventListener('click', () => showView('catalogue'));
+    // Back from product details - use browser history
+    if (elements.backToCatalogueBtn) {
+        elements.backToCatalogueBtn.addEventListener('click', () => {
+            history.back();
+        });
+    }
+    
+    // Back from wishlist - go to catalogue view
+    if (elements.backFromWishlistBtn) {
+        elements.backFromWishlistBtn.addEventListener('click', () => {
+            // Set department URL and show catalogue
+            const url = new URL(window.location);
+            url.searchParams.set('department', currentDepartment);
+            url.hash = '';
+            history.pushState(
+                { type: 'department', department: currentDepartment },
+                '',
+                url
+            );
+            showView('catalogue');
+        });
+    }
     
     if (elements.viewWishlistBtn) {
         elements.viewWishlistBtn.addEventListener('click', () => {
@@ -642,11 +935,12 @@ function setupEventListeners() {
     }
     
     if (elements.addToWishlistBtn) elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+    if (elements.buyNowBtn) elements.buyNowBtn.addEventListener('click', handleBuyNow);
     if (elements.searchInput) elements.searchInput.addEventListener('input', filterAndSearchProducts);
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
-            setDepartment(element.dataset.department, { scrollToCatalogue: true });
+            setDepartment(element.dataset.department);
             showView('catalogue');
         });
     });
@@ -670,13 +964,102 @@ function setupEventListeners() {
         if (event.key === 'Escape') closeOverlay();
     });
 
-    window.addEventListener('popstate', () => {
-        if (views.catalogue?.classList.contains('active')) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    });
-    
+    window.addEventListener('popstate', handlePopState);
     window.history.replaceState({ isDepartmentSelection: true }, '', window.location.href);
+    
+}
+
+function handlePopState(event) {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(window.location.search);
+    const departmentParam = params.get('department') || 'saree';
+    
+    // Check the state object to determine what view to show
+    const state = event?.state || {};
+
+    if (hash.startsWith('#product/')) {
+        // Show product details
+        const productCode = decodeURIComponent(hash.split('/')[1]);
+        if (allProducts.length === 0) {
+            fetchProducts().then(() => {
+                const product = allProducts.find(p => p.code === productCode || p.fabric === productCode);
+                if (product) {
+                    currentDepartment = product.departmentKey;
+                    showProductDetails(product, { skipHistoryPush: true });
+                } else {
+                    showView('catalogue');
+                }
+            });
+        } else {
+            const product = allProducts.find(p => p.code === productCode || p.fabric === productCode);
+            if (product) {
+                currentDepartment = product.departmentKey;
+                showProductDetails(product, { skipHistoryPush: true });
+            } else {
+                showView('catalogue');
+            }
+        }
+    } else if (hash === '#wishlist') {
+        // Show wishlist
+        showView('wishlist');
+    } else {
+        // Show catalog/department view
+        setDepartment(departmentParam, { updateUrl: false });
+        updateDepartmentUI();
+        showView('catalogue');
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+function dismissalPremiumIntroScreen() {
+    const loaderElement = document.getElementById('premium-intro-loader');
+    if (loaderElement) {
+        setTimeout(() => {
+            loaderElement.classList.add('fade-out');
+            setTimeout(() => {
+                loaderElement.remove();
+            }, 1200);
+        }, 1800);
+    }
+}
+function updateProductURL(product) {
+
+    const url = new URL(window.location);
+
+    url.searchParams.set("department", currentDepartment);
+
+    url.hash = `product/${product.code}`;
+
+    history.pushState(
+        {
+            type: "product",
+            product: product.code,
+            department: currentDepartment
+        },
+        "",
+        url
+    );
+
+}
+
+function updateDepartmentHistory() {
+
+    const url = new URL(window.location);
+
+    url.searchParams.set("department", currentDepartment);
+
+    url.hash = "";
+
+    history.pushState(
+        {
+            type: "department",
+            department: currentDepartment
+        },
+        "",
+        url
+    );
+
+}
+
+window.addEventListener('load', dismissalPremiumIntroScreen);

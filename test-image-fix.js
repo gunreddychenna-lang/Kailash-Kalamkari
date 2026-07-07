@@ -25,7 +25,7 @@ const testUrls = [
 console.log('Testing Image URL Generation:\n');
 testUrls.forEach((url, idx) => {
     const fileId = extractDriveFileId(url);
-    const cdnUrl = buildCdnImageUrl(fileId, 1200);
+    const cdnUrl = buildCdnImageUrl(fileId, 800);
     const directUrl = buildDirectDriveUrl(fileId);
     
     console.log(`Test ${idx + 1}:`);
