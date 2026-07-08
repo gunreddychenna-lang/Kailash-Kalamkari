@@ -272,12 +272,34 @@ async function init() {
     window.addEventListener('popstate', handlePopState);
 }
 
-// Fetch Data from Google Sheet JSON Endpoint
+// Fetch Data from Google Sheet JSON Endpoint with 15-Minute Local Caching
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block';
-        const response = await fetch(API_URL);
-        const rawData = await response.json();
+        
+        const CACHE_KEY = 'kalamkari_products_cache';
+        const CACHE_TIME_KEY = 'kalamkari_products_cache_time';
+        const cacheExpiry = 15 * 60 * 1000; // 15 minutes cache window
+        
+        let rawData;
+        const cachedData = localStorage.getItem(CACHE_KEY);
+        const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+        const now = Date.now();
+        
+        // Check if fresh cache exists to prevent hitting Google Apps Script constantly
+        if (cachedData && cachedTime && (now - parseInt(cachedTime) < cacheExpiry)) {
+            rawData = JSON.parse(cachedData);
+            console.log("%c🚀 Products loaded instantly from Local Storage Cache!", "color: #4ECDC4; font-weight: bold;");
+        } else {
+            console.log("%c🌐 Fetching fresh product data from Google Script API...", "color: #FF6B6B; font-weight: bold;");
+            const response = await fetch(API_URL);
+            rawData = await response.json();
+            
+            // Save successful API fetch results to cache
+            localStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
+            localStorage.setItem(CACHE_TIME_KEY, now.toString());
+        }
+        
         const data = Array.isArray(rawData) ? rawData : (rawData.value || rawData.data || rawData.records || []);
         
         const getFieldValue = (item, keys) => {
@@ -307,7 +329,6 @@ async function fetchProducts() {
                 return isNaN(n) ? 0 : n;
             }
 
-            // Maps cleanly to 'Fabric Name' header row properties directly
             const fabric = String(getFieldValue(item, ['fabric name', 'Fabric Name', 'fabric', 'Fabric']) || 'Pure Handcrafted Silk').trim();
             const code = String(getFieldValue(item, ['code', 'Code', 'style code', 'Style Code']) || fabric).trim();
             const category = String(getFieldValue(item, ['category', 'Category']) || 'Traditional').trim();
@@ -343,7 +364,7 @@ async function fetchProducts() {
         // Debug logging for image URLs
         if (allProducts.length > 0) {
             const firstProd = allProducts[0];
-            console.log('%c🖼️ FIRST PRODUCT DATA:', 'color: #FF6B6B; font-weight: bold; font-size: 14px', {
+            console.log('%c¼️ FIRST PRODUCT DATA:', 'color: #FF6B6B; font-weight: bold; font-size: 14px', {
                 code: firstProd.code,
                 imageLink: firstProd.imageLink,
                 thumbnail: firstProd.thumbnail,
@@ -352,7 +373,7 @@ async function fetchProducts() {
             });
             
             const fileId = extractDriveFileId(firstProd.imageId || firstProd.imageLink);
-            console.log('%c📝 EXTRACTED FILE ID:', 'color: #4ECDC4; font-weight: bold; font-size: 14px', fileId || '❌ FAILED TO EXTRACT');
+            console.log('%cï¿½ï¿½ EXTRACTED FILE ID:', 'color: #4ECDC4; font-weight: bold; font-size: 14px', fileId || 'âŒ FAILED TO EXTRACT');
             
             if (fileId) {
                 const urls = {
@@ -361,10 +382,10 @@ async function fetchProducts() {
                     'Google Drive Direct': buildDirectDriveUrl(fileId),
                     'Google Drive Download': buildDriveDownloadUrl(fileId)
                 };
-                console.log('%c🔗 GENERATED URLS:', 'color: #95E1D3; font-weight: bold; font-size: 14px', urls);
+                console.log('%cï¿½ï¿½ GENERATED URLS:', 'color: #95E1D3; font-weight: bold; font-size: 14px', urls);
                 
                 const finalUrl = getProductImageUrl(firstProd);
-                console.log('%c✅ FINAL URL USED:', 'color: #F38181; font-weight: bold; font-size: 14px', finalUrl.substring(0, 150) + '...');
+                console.log('%câœ… FINAL URL USED:', 'color: #F38181; font-weight: bold; font-size: 14px', finalUrl.substring(0, 150) + '...');
             }
         }
         

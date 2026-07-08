@@ -485,7 +485,7 @@ body {
 
 /* Overrides for Details Dashboard Mode */
 body.details-mode .brand-tagline,
-body.details-mode h1,
+body.details-mode .main-header h1,
 body.details-mode .brand-separator,
 body.details-mode .search-bar-container,
 body.details-mode .department-bar-container,
