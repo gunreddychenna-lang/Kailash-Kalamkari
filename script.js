@@ -1,5 +1,40 @@
+// Force the browser to let us manage scroll positions manually on back navigation
+if ('history' in window && 'scrollRestoration' in window.history) {
+    window.history.scrollRestoration = 'manual';
+}
+
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
+const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23f6eedf"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Cinzel, serif" font-size="28" fill="%234a0e05"%3EImage+Preparing%3C/text%3E%3C/svg%3E';
+
+// Helper: Aggressively resets scroll to top across every possible scroll container in the document
+function forceScrollToTopAggressive() {
+    const scrollTargets = [
+        window,
+        document.documentElement,
+        document.body,
+        document.querySelector('.container'),
+        document.querySelector('main'),
+        document.getElementById('catalogue-view'),
+        document.getElementById('product-details-view'),
+        document.getElementById('wishlist-view')
+    ];
+
+    let attempts = 0;
+    const interval = setInterval(() => {
+        scrollTargets.forEach(target => {
+            if (target) {
+                if (target.scrollTo) {
+                    target.scrollTo(0, 0);
+                }
+                target.scrollTop = 0;
+            }
+        });
+        attempts++;
+        if (attempts > 30) { // Absorbs mobile layout shifts dynamically and quickly
+            clearInterval(interval);
+        }
+    }, 15);
+}
 
 // Helper: Extract Google Drive File ID from various formats
 function extractDriveFileId(urlOrId) {
@@ -28,7 +63,7 @@ function buildDirectDriveUrl(fileId) {
     return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
-// Helper: Build Google Drive download URL (sometimes has better CORS support)
+// Helper: Build download URL
 function buildDriveDownloadUrl(fileId) {
     if (!fileId) return '';
     return `https://drive.google.com/uc?export=download&id=${fileId}`;
@@ -37,7 +72,6 @@ function buildDriveDownloadUrl(fileId) {
 // Helper: Build proxy URL for Google Drive (best CORS support)
 function buildProxyImageUrl(fileId, width = 800) {
     if (!fileId) return '';
-    // Using public proxy services that work with Google Drive
     return `https://images.weserv.nl/?url=https://drive.google.com/uc?export=view%26id=${fileId}&w=${width}&fit=cover`;
 }
 
@@ -45,19 +79,16 @@ function buildProxyImageUrl(fileId, width = 800) {
 function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
 
-    // Try to get a file ID from various possible fields
     const imageLink = product.imageLink || product["image link"] || '';
     const imageId = product.imageId || product["image id"] || '';
     const image = product.image || '';
     const thumbnail = product.thumbnail || '';
 
-    // Extract File ID from any source
     const fileId = extractDriveFileId(imageId) || 
                    extractDriveFileId(imageLink) || 
                    extractDriveFileId(image) ||
                    extractDriveFileId(thumbnail);
 
-    // Build list of URLs to try (7-tier fallback system)
     const sources = [];
 
     // Tier 1: Proxy URL with CORS support (BEST - most reliable)
@@ -93,7 +124,6 @@ function getProductImageUrl(product, width = 800) {
     // Tier 7: Default placeholder
     sources.push(DEFAULT_IMAGE);
 
-    // Return first valid source (browser will handle fallback if image fails to load)
     return sources.find(url => url) || DEFAULT_IMAGE;
 }   
 
@@ -109,7 +139,7 @@ function getInitialDepartment() {
 function normalizeDepartment(value) {
     const normalized = String(value || '').toLowerCase().replace(/[^a-z]/g, '');
     if (normalized.includes('dupatta') || normalized.includes('duppata') || normalized.includes('duppatta')) return 'dupatta';
-    if (normalized.includes('saree') || normalized.includes('sari')) return 'saree';
+    if (normalized.includes('saree')) return 'saree';
     return '';
 }
 
@@ -129,7 +159,7 @@ function inferDepartmentFromText(...values) {
 function updateDepartmentUrl() {
     const url = new URL(window.location.href);
     url.searchParams.set('department', currentDepartment);
-    window.history.replaceState({}, '', url);
+    window.history.replaceState({ type: 'department', department: currentDepartment }, '', url);
 }
 
 function updateDepartmentUI() {
@@ -141,7 +171,7 @@ function updateDepartmentUI() {
     });
 
     if (elements.searchInput) {
-        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by fabric name, design or colour...`;
+        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by fabric, paint style or motif...`;
     }
 }
 
@@ -153,30 +183,33 @@ function setDepartment(department, { updateUrl = true } = {}) {
         elements.searchInput.value = '';
     }
 
-    fabricScrollTriggerActive = false; // Reset scroll action on department shift
+    fabricScrollTriggerActive = false; 
 
     updateDepartmentUI();
     renderFilterButtons();
     filterAndSearchProducts();
 
     if (updateUrl) {
-        // Build the new URL for this department
         const url = new URL(window.location);
         url.searchParams.set('department', currentDepartment);
         url.hash = '';
         
-        // Push to history for back button navigation
-        history.pushState(
-            { type: 'department', department: currentDepartment },
-            '',
-            url
-        );
+        if (history.state && history.state.isInitial) {
+            history.replaceState(
+                { type: 'department', department: currentDepartment },
+                '',
+                url
+            );
+        } else {
+            history.pushState(
+                { type: 'department', department: currentDepartment },
+                '',
+                url
+            );
+        }
     }
 
-    // ABSOLUTE FORCE RESET TO TOP ON NAVIGATION ACTIONS
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
+    forceScrollToTopAggressive();
 }
 
 // State Management
@@ -194,11 +227,9 @@ let isDetailZoomed = false;
 let isOverlayZoomed = false;
 let navigationStack = [];
 let openedFromShare = false;
+let fabricScrollTriggerActive = false;       
 
-let fabricScrollTriggerActive = false;       // Tracks if a fabric filter button has been clicked
-let backNavigationScrollTriggerActive = false; // Tracks if the user just navigated back to the homepage
-
-// DOM Elements Link Map
+// DOM Elements Map
 const views = {
     catalogue: document.getElementById('catalogue-view'),
     details: document.getElementById('product-details-view'),
@@ -236,14 +267,13 @@ const elements = {
     buyNowBtn: document.getElementById("buy-now-btn"),
 };
 
-// Helper: Determine if cached content has missed an 11:00 AM or 2:00 PM update threshold
+// Helper: Determine if cached content needs refreshing (11:00 AM or 2:00 PM updates)
 function checkIfCacheNeedsRefresh(lastFetchTimestamp) {
     if (!lastFetchTimestamp) return true;
 
     const now = new Date();
     const lastFetch = new Date(lastFetchTimestamp);
 
-    // Generate standard daily update markers
     const today11 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0, 0, 0);
     const today14 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0, 0, 0);
     const yesterday14 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 14, 0, 0, 0);
@@ -258,7 +288,6 @@ function checkIfCacheNeedsRefresh(lastFetchTimestamp) {
         latestThreshold = yesterday14;
     }
 
-    // Refresh if our stored state is older than the most recent scheduled window
     return lastFetch < latestThreshold;
 }
 
@@ -268,11 +297,12 @@ async function init() {
     setupEventListeners();
     await fetchProducts();
     
+    window.history.replaceState({ isInitial: true, department: 'saree' }, '', window.location.href);
+
     const params = new URLSearchParams(window.location.search);
     const hashParam = window.location.hash;
     const departmentParam = params.get('department');
     
-    // Detect if opening a shared product link directly
     const isDirectProductLink = hashParam.startsWith('#product/');
     
     if (isDirectProductLink) {
@@ -282,7 +312,6 @@ async function init() {
         if (product) {
             currentDepartment = product.departmentKey;
             
-            // For shared links, create history: department → product
             if (history.length <= 1) {
                 const deptUrl = new URL(window.location);
                 deptUrl.searchParams.set('department', currentDepartment);
@@ -297,17 +326,15 @@ async function init() {
             showProductDetails(product);
         }
     } else {
-        // Normal catalog view
         const department = departmentParam || 'saree';
-        setDepartment(department, { updateUrl: false });
+        setDepartment(department, { updateUrl: true });
         updateDepartmentUI();
     }
     
     renderFilterButtons();
-    window.addEventListener('popstate', handlePopState);
 }
 
-// Fetch Data from Google Sheet JSON Endpoint with Scheduled Twice-Daily Caching
+// Fetch Data with Caching
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block';
@@ -327,9 +354,7 @@ async function fetchProducts() {
         
         if (!needsRefresh && cachedData) {
             rawData = JSON.parse(cachedData);
-            console.log("%c🚀 Products loaded instantly from Scheduled Local Storage Cache!", "color: #4ECDC4; font-weight: bold;");
         } else {
-            console.log("%c🌐 Fetching fresh product data from Google Script API...", "color: #FF6B6B; font-weight: bold;");
             const response = await fetch(API_URL);
             rawData = await response.json();
             
@@ -422,11 +447,10 @@ async function fetchProducts() {
         updateDepartmentUI();
         renderFilterButtons();
         filterAndSearchProducts();
-        calculatePriceRanges();
     } catch (error) {
         console.error('Error fetching data:', error);
         if (elements.spinner) {
-            elements.spinner.textContent = 'Failed to load collection. Please verify column headings setup.';
+            elements.spinner.textContent = 'Unable to connect to sacred temple records. Please check setup.';
         }
     }
 }
@@ -437,7 +461,7 @@ function renderProducts(products, container) {
     container.innerHTML = '';
     
     if (products.length === 0) {
-        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #888;">No items discovered.</p>';
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #8c765c; font-family: var(--font-heritage); padding: 3rem;">No handloom pieces currently displayed in this tier.</p>';
         return;
     }
     
@@ -452,12 +476,12 @@ function renderProducts(products, container) {
         card.innerHTML = `
             <div class="product-image-wrapper">
                 <img src="${imgUrl}" alt="${product.title}" loading="lazy" data-product-code="${product.code}">
-                ${product.qty <= 0 ? '<span class="sold-out-badge">SOLD OUT</span>' : ''}
+                ${product.qty <= 0 ? '<span class="sold-out-badge">ACQUIRED</span>' : ''}
             </div>
             <div class="product-info">
                 <h3 class="product-title">${product.title}</h3>
-                <p class="product-card-description">${product.description ? product.description.substring(0, 60) + '...' : ''}</p>
-                <div class="product-price">Rs. ${formattedPrice}</div>
+                <p class="product-card-description">${product.description ? product.description.substring(0, 65) + '...' : ''}</p>
+                <div class="product-price">₹ ${formattedPrice}</div>
             </div>
         `;
         
@@ -498,53 +522,16 @@ function renderProducts(products, container) {
     });
 }
 
-// Render Curated Connections
-function renderSimilarProducts(currentProduct) {
-    const similarSection = document.getElementById('similar-products-section');
-    const similarContainer = document.getElementById('similar-products-grid');
-    if (!similarSection || !similarContainer) return;
-
-    let similar = allProducts.filter(p => 
-        p.departmentKey === currentProduct.departmentKey &&
-        p.fabric.toLowerCase() === currentProduct.fabric.toLowerCase() && 
-        p.code !== currentProduct.code
-    );
-
-    let higherPriced = similar
-        .filter(p => p.price > currentProduct.price)
-        .sort((a, b) => b.price - a.price);
-
-    if (higherPriced.length === 0) {
-        const minPrice = currentProduct.price * 0.7;
-        const maxPrice = currentProduct.price * 1.3;
-        higherPriced = allProducts.filter(p => 
-            p.departmentKey === currentProduct.departmentKey &&
-            p.code !== currentProduct.code && 
-            p.price >= minPrice && 
-            p.price <= maxPrice
-        ).sort((a, b) => b.price - a.price);
-    }
-
-    if (higherPriced.length > 0) {
-        similarSection.style.display = 'block';
-        renderProducts(higherPriced.slice(0, 4), similarContainer);
-    } else {
-        similarSection.style.display = 'none';
-    }
-}
-
 function showView(viewName) {
     Object.values(views).forEach(v => v?.classList.remove('active'));
     views[viewName]?.classList.add('active');
     
     if (viewName === 'details') {
         document.body.classList.add('details-mode');
+        forceScrollToTopAggressive();
     } else {
         document.body.classList.remove('details-mode');
-        // ABSOLUTE FORCE RESET TO TOP ON CATALOGUE VIEW RESTORATION
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
+        forceScrollToTopAggressive();
     }
 }
 
@@ -599,13 +586,7 @@ function attachFilterHandlers() {
             buttons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             filterAndSearchProducts();
-
-            // ABSOLUTE FORCE RESET TO TOP ON FABRIC FILTER BUTTON CLICK
-            window.scrollTo(0, 0);
-            document.documentElement.scrollTop = 0;
-            document.body.scrollTop = 0;
-
-            // Activate tracking for scroll back to top logic
+            forceScrollToTopAggressive();
             fabricScrollTriggerActive = true;
         });
     });
@@ -617,13 +598,14 @@ function formatPriceRange(prices) {
     const formatOpts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
     const formattedMin = new Intl.NumberFormat('en-IN', formatOpts).format(minPrice);
     const formattedMax = new Intl.NumberFormat('en-IN', formatOpts).format(maxPrice);
-    return minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
+    return minPrice === maxPrice ? formattedMin : `${formattedMin} - ${formattedMax}`;
 }
 
 // Display Full Details Dashboard Panel
 function showProductDetails(product, { skipHistoryPush = false } = {}) {
     currentProduct = product;
-    
+    forceScrollToTopAggressive();
+
     if (!skipHistoryPush) {
         updateProductURL(product);
     }
@@ -657,8 +639,6 @@ function showProductDetails(product, { skipHistoryPush = false } = {}) {
                 this.src = DEFAULT_IMAGE;
             }
         };
-
-        elements.detailImage.title = 'Click to view full screen texture';
     }
     
     if (elements.detailCode) elements.detailCode.textContent = `Fabric: ${product.fabric}`;
@@ -666,12 +646,12 @@ function showProductDetails(product, { skipHistoryPush = false } = {}) {
     
     if (elements.detailStock) {
         if (product.qty > 0) {
-            elements.detailStock.textContent = 'Ready to dispatch';
+            elements.detailStock.textContent = 'Sacred Piece Available';
             elements.detailStock.style.backgroundColor = 'rgba(42, 107, 68, 0.09)';
             elements.detailStock.style.color = '#2A6B44';
             elements.detailStock.style.borderColor = 'rgba(42, 107, 68, 0.18)';
         } else {
-            elements.detailStock.textContent = 'Acquired / Sold Out';
+            elements.detailStock.textContent = 'Acquired / In Private Vault';
             elements.detailStock.style.backgroundColor = 'rgba(139, 46, 36, 0.1)';
             elements.detailStock.style.color = '#8B2E24';
             elements.detailStock.style.borderColor = 'rgba(139, 46, 36, 0.2)';
@@ -688,17 +668,15 @@ function showProductDetails(product, { skipHistoryPush = false } = {}) {
     }
     
     if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
-    if (elements.detailFabricHighlight) elements.detailFabricHighlight.textContent = product.fabric;
     
     updateWishlistButtonState();
-    renderSimilarProducts(product);
     showView("details");
 
     if (!navigationStack.length) {
         navigationStack.push(currentDepartment);
     }
     
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    forceScrollToTopAggressive();
 }
 
 function updateDetailZoom() {
@@ -781,38 +759,6 @@ function moveOverlayZoom(event) {
     elements.overlayImage.style.transformOrigin = `${x}% ${y}%`;
 }
 
-function calculatePriceRanges() {
-    const categories = {
-        'kanchipuram': 'pure kanchipuram silk',
-        'ikkat': 'pure ikkat  silk', 
-        'gadwal': 'pure gadwal silk',
-        'tussar': 'pure tussar silk'
-    };
-    
-    for (const [id, fabricName] of Object.entries(categories)) {
-        const categoryProducts = allProducts.filter(p => p.fabric && p.fabric.toLowerCase() === fabricName.toLowerCase());
-        const priceElement = document.getElementById(`price-${id}`);
-        if (!priceElement) continue;
-        
-        if (categoryProducts.length > 0) {
-            const prices = categoryProducts.map(p => p.price).filter(p => p > 0);
-            if (prices.length > 0) {
-                const minPrice = Math.min(...prices);
-                const maxPrice = Math.max(...prices);
-                const formatOpts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
-                const formattedMin = new Intl.NumberFormat('en-IN', formatOpts).format(minPrice);
-                const formattedMax = new Intl.NumberFormat('en-IN', formatOpts).format(maxPrice);
-                
-                priceElement.textContent = minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
-            } else {
-                priceElement.textContent = 'Price Unavailable';
-            }
-        } else {
-            priceElement.textContent = 'Out of Stock';
-        }
-    }
-}
-
 // Wishlist Controls
 function toggleWishlist() {
     if (!currentProduct) return;
@@ -827,36 +773,21 @@ function toggleWishlist() {
     try {
         localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
     } catch (e) {
-        console.error("Error updating local storage key data", e);
+        console.error("Error updating local storage", e);
     }
     
     updateWishlistCount();
     updateWishlistButtonState();
 }
 
-// Handle Buy Now button click
+// Purchase Integration
 function handleBuyNow() {
-    if (!currentProduct) {
-        console.warn('No product selected for purchase');
-        return;
-    }
+    if (!currentProduct) return;
     
-    const orderData = {
-        productCode: currentProduct.code,
-        productName: currentProduct.title,
-        fabric: currentProduct.fabric,
-        price: currentProduct.price,
-        quantity: 1,
-        timestamp: new Date().toISOString()
-    };
-    
-    console.log('📦 Purchase initiated:', orderData);
-    
-    const message = `Processing purchase for ${currentProduct.title}\nAmount: ₹${currentProduct.price}\n\nPayment gateway will be integrated soon!`;
+    const message = `Inquiry regarding ${currentProduct.title}\nProduct Code: ${currentProduct.code}\nValue: ₹${new Intl.NumberFormat('en-IN').format(currentProduct.price)}\n\nRedirecting to sacred order verification system.`;
     alert(message);
 }
 
-// Global Filter engine parsing
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
     const activeFilterBtn = document.querySelector('.filter-btn.active');
@@ -897,7 +828,7 @@ function updateWishlistButtonState() {
         if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Gallery';
     } else {
         elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Acquire into Wishlist';
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Wishlist';
     }
 }
 
@@ -908,10 +839,12 @@ function renderWishlist() {
     }
 }
 
-// Event Listeners Map Setup
+// Event Listeners Setup
 function setupEventListeners() {
     if (elements.backToCatalogueBtn) {
-        elements.backToCatalogueBtn.addEventListener('click', () => {
+        elements.backToCatalogueBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            forceScrollToTopAggressive();
             history.back();
         });
     }
@@ -927,7 +860,7 @@ function setupEventListeners() {
                 url
             );
             showView('catalogue');
-            backNavigationScrollTriggerActive = true; // Track back navigation
+            forceScrollToTopAggressive();
         });
     }
     
@@ -946,11 +879,7 @@ function setupEventListeners() {
         element.addEventListener('click', () => {
             setDepartment(element.dataset.department);
             showView('catalogue');
-            
-            // ABSOLUTE FORCE RESET TO TOP ON EXPLICIT DEPARTMENT COLLECTION CLICK
-            window.scrollTo(0, 0);
-            document.documentElement.scrollTop = 0;
-            document.body.scrollTop = 0;
+            forceScrollToTopAggressive();
         });
     });
     
@@ -973,40 +902,30 @@ function setupEventListeners() {
         if (event.key === 'Escape') closeOverlay();
     });
 
-    // Handle scroll events specifically for fabric button selection and back button redirect
     window.addEventListener('scroll', () => {
-        // Intercept scroll-down if user arrived via back navigation to immediately scroll them back to top
-        if (backNavigationScrollTriggerActive) {
-            if (window.scrollY > 20) {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-                backNavigationScrollTriggerActive = false;
-            }
-        }
-
         if (fabricScrollTriggerActive) {
-            // Threshold set to 450px to capture scrolling down of ~2 items reliably on all screen sizes
-            if (window.scrollY > 450) {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-                // Deactivate the flag so users are able to continue scrolling naturally afterwards
+            if (window.scrollY > 400) {
+                forceScrollToTopAggressive();
                 fabricScrollTriggerActive = false;
             }
         }
     });
 
     window.addEventListener('popstate', handlePopState);
-    window.history.replaceState({ isDepartmentSelection: true }, '', window.location.href);
 }
 
 function handlePopState(event) {
     const hash = window.location.hash;
     const params = new URLSearchParams(window.location.search);
-    const departmentParam = params.get('department') || 'saree';
+    
+    let departmentParam = 'saree';
+    if (event && event.state && event.state.department) {
+        departmentParam = event.state.department;
+    } else {
+        departmentParam = params.get('department') || 'saree';
+    }
+
+    departmentParam = normalizeDepartment(departmentParam) || 'saree';
 
     if (hash.startsWith('#product/')) {
         const productCode = decodeURIComponent(hash.split('/')[1]);
@@ -1014,7 +933,6 @@ function handlePopState(event) {
             fetchProducts().then(() => {
                 const product = allProducts.find(p => p.code === productCode || p.fabric === productCode);
                 if (product) {
-                    currentDepartment = product.departmentKey;
                     showProductDetails(product, { skipHistoryPush: true });
                 } else {
                     showView('catalogue');
@@ -1023,7 +941,6 @@ function handlePopState(event) {
         } else {
             const product = allProducts.find(p => p.code === productCode || p.fabric === productCode);
             if (product) {
-                currentDepartment = product.departmentKey;
                 showProductDetails(product, { skipHistoryPush: true });
             } else {
                 showView('catalogue');
@@ -1035,24 +952,7 @@ function handlePopState(event) {
         setDepartment(departmentParam, { updateUrl: false });
         updateDepartmentUI();
         showView('catalogue');
-
-        // Set scroll redirect trigger active on popstate back navigation
-        backNavigationScrollTriggerActive = true;
-
-        // MULTI-STAGE ABSOLUTE FORCE RESET TO OVERRIDE BROWSER POSITION PAINT JUMPS ON BACK NAVIGATION
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-        
-        setTimeout(() => {
-            window.scrollTo(0, 0);
-            document.documentElement.scrollTop = 0;
-        }, 10);
-        
-        setTimeout(() => {
-            window.scrollTo(0, 0);
-            document.documentElement.scrollTop = 0;
-        }, 80);
+        forceScrollToTopAggressive();
     }
 }
 
@@ -1066,11 +966,10 @@ function dismissalPremiumIntroScreen() {
             setTimeout(() => {
                 loaderElement.remove();
             }, 1200);
-        }, 1800);
+        }, 1500);
     }
 }
 
-// Navigate URL hash update
 function updateProductURL(product) {
     const url = new URL(window.location);
     url.searchParams.set("department", currentDepartment);
@@ -1079,20 +978,6 @@ function updateProductURL(product) {
         {
             type: "product",
             product: product.code,
-            department: currentDepartment
-        },
-        "",
-        url
-    );
-}
-
-function updateDepartmentHistory() {
-    const url = new URL(window.location);
-    url.searchParams.set("department", currentDepartment);
-    url.hash = "";
-    history.pushState(
-        {
-            type: "department",
             department: currentDepartment
         },
         "",
