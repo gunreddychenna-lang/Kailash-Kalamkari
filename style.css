@@ -1383,3 +1383,9 @@ body.details-mode .header-main-marquee {
         gap: 2.8rem;
     }
 }
+/* Additional Similar Products Section Padding & Separation */
+.similar-products-section {
+    padding-top: 4rem;
+    margin-top: 5rem;
+    border-top: 1px dashed var(--color-gold-muted);
+}

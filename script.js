@@ -4,6 +4,9 @@ if ('history' in window && 'scrollRestoration' in window.history) {
 }
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
+// PASTE YOUR NEW WISHLIST & ORDERS GOOGLE SHEET WEB APP URL HERE:
+const WISHLIST_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyLGhIW4CaTGk8xGak7gl69hfa9e5S0YsniEoXH9jumpvC33gex1r8rYsPYvPDZvGWy8Q/exec';
+
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23f6eedf"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Cinzel, serif" font-size="28" fill="%234a0e05"%3EImage+Preparing%3C/text%3E%3C/svg%3E';
 
 // Helper: Aggressively resets scroll to top across every possible scroll container in the document
@@ -672,6 +675,9 @@ function showProductDetails(product, { skipHistoryPush = false } = {}) {
     updateWishlistButtonState();
     showView("details");
 
+    // Render similar price range products
+    renderSimilarProducts(product);
+
     if (!navigationStack.length) {
         navigationStack.push(currentDepartment);
     }
@@ -688,6 +694,7 @@ function updateDetailZoom() {
     }
 }
 
+// Full screen lightbox logic
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
 
@@ -762,12 +769,15 @@ function moveOverlayZoom(event) {
 // Wishlist Controls
 function toggleWishlist() {
     if (!currentProduct) return;
-    const index = wishlist.findIndex(item => item.code === currentProduct.code || item.fabric === currentProduct.fabric);
+    const index = wishlist.findIndex(item => item.code === currentProduct.code);
     
+    let action = "add"; // Track whether we are adding or removing
     if (index === -1) {
         wishlist.push(currentProduct);
+        action = "add";
     } else {
         wishlist.splice(index, 1);
+        action = "remove";
     }
     
     try {
@@ -778,14 +788,79 @@ function toggleWishlist() {
     
     updateWishlistCount();
     updateWishlistButtonState();
+
+    // --- GOOGLE SHEETS WISHLIST TRACKING SYSTEM ---
+    if (typeof WISHLIST_SHEET_URL !== 'undefined' && WISHLIST_SHEET_URL && WISHLIST_SHEET_URL !== 'YOUR_NEW_WISHLIST_SHEET_URL_HERE') {
+        fetch(WISHLIST_SHEET_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: "wishlist",
+                productCode: currentProduct.code || currentProduct.fabric,
+                wishlistAction: action
+            })
+        })
+        .then(() => console.log(`Google Sheets Wishlist updated: ${action} -> ${currentProduct.code || currentProduct.fabric}`))
+        .catch(err => console.error("Error updating Google Sheets Wishlist:", err));
+    }
+    // ----------------------------------------------
 }
 
-// Purchase Integration
+// Purchase Integration with Automated Google Sheets Logging (Inventory Reduction Bypassed)
 function handleBuyNow() {
     if (!currentProduct) return;
     
-    const message = `Inquiry regarding ${currentProduct.title}\nProduct Code: ${currentProduct.code}\nValue: ₹${new Intl.NumberFormat('en-IN').format(currentProduct.price)}\n\nRedirecting to sacred order verification system.`;
-    alert(message);
+    // Prevent purchase if the product is already sold out (qty <= 0)
+    if (currentProduct.qty <= 0) {
+        alert("This masterpiece has already been acquired.");
+        return;
+    }
+
+    const options = {
+        "key": "YOUR_RAZORPAY_KEY_ID", // Replace with your actual Razorpay Key ID
+        "amount": currentProduct.price * 100, // Amount in paise
+        "currency": "INR",
+        "name": "Kailash Kalamkari",
+        "description": `Acquisition of Saree: ${currentProduct.code}`,
+        "handler": function (response) {
+            alert("Payment verified. Recording your order details...");
+
+            // Send order details to WISHLIST_SHEET_URL (where your Wishlist and Orders sheets reside)
+            fetch(WISHLIST_SHEET_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: "place_order",
+                    customerName: response.billing_name || "Customer",
+                    customerEmail: response.billing_email || "Not Provided",
+                    customerPhone: response.billing_phone || "Not Provided",
+                    productCode: currentProduct.code,
+                    amount: currentProduct.price,
+                    paymentId: response.razorpay_payment_id
+                })
+            })
+            .then(() => {
+                alert("Order recorded successfully! We will connect with you shortly.");
+                location.reload();
+            })
+            .catch(err => {
+                console.error("Error writing order:", err);
+                alert("Payment was successful, but we had trouble updating the logs. Please share your payment ID with us.");
+            });
+        },
+        "theme": {
+            "color": "#560b02" // Matching your Temple Crimson theme
+        }
+    };
+
+    const rzp1 = new Razorpay(options);
+    rzp1.open();
 }
 
 function filterAndSearchProducts() {
@@ -821,7 +896,7 @@ function updateWishlistCount() {
 
 function updateWishlistButtonState() {
     if (!currentProduct || !elements.addToWishlistBtn) return;
-    const isInWishlist = wishlist.some(item => item.code === currentProduct.code || item.fabric === currentProduct.fabric);
+    const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
     
     if (isInWishlist) {
         elements.addToWishlistBtn.classList.add('active');
@@ -986,3 +1061,21 @@ function updateProductURL(product) {
 }
 
 window.addEventListener('load', dismissalPremiumIntroScreen);
+
+// Function to fetch and display products of a similar price range
+function renderSimilarProducts(product) {
+    const similarGrid = document.getElementById('similar-products-grid');
+    if (!similarGrid) return;
+
+    // 1. Filter out the current product, only selecting items from the same department
+    const candidates = allProducts.filter(p => p.code !== product.code && p.departmentKey === product.departmentKey);
+
+    // 2. Sort candidates by the absolute price difference (closest match first)
+    candidates.sort((a, b) => Math.abs(a.price - product.price) - Math.abs(b.price - product.price));
+
+    // 3. Take the 3 closest products in price range
+    const similarProducts = candidates.slice(0, 3);
+
+    // 4. Render them using the existing clean grid rendering system
+    renderProducts(similarProducts, similarGrid);
+}
