@@ -4,7 +4,7 @@ if ('history' in window && 'scrollRestoration' in window.history) {
 }
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-// BOTH VARIABLES POINT TO THE SAME WEB APP URL:
+// PASTE YOUR NEW WISHLIST & ORDERS GOOGLE SHEET WEB APP URL HERE:
 const WISHLIST_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw_KE6xV7wDL0qx0B_e06KLwRD-LfByn9wWVSNfNLlIBH-5ZfRW_7NlwdMyyNG5DE7r_A/exec';
 
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23f6eedf"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Cinzel, serif" font-size="28" fill="%234a0e05"%3EImage+Preparing%3C/text%3E%3C/svg%3E';
@@ -133,12 +133,6 @@ function getProductImageUrl(product, width = 800) {
 function sortProductsByPrice(products) {
     return [...products].sort((a, b) => (b.price || 0) - (a.price || 0));
 }
-
-// Initialize Cashfree
-// Set mode to "production" when you are ready to process real money
-const cashfree = Cashfree({
-    mode: "sandbox" 
-});
 
 function getInitialDepartment() {
     const params = new URLSearchParams(window.location.search);
@@ -820,15 +814,20 @@ function toggleWishlist() {
     // ----------------------------------------------
 }
 
-// Purchase Integration with Automated Google Sheets Logging (Cashfree Checkout v3)
+// Purchase Integration with Automated Google Sheets Logging (Inventory Reduction Bypassed)
 function handleBuyNow() {
     if (!currentProduct) return;
     
-    // Prevent purchase if the product is already sold out
+    // Prevent purchase if the product is already sold out (qty <= 0)
     if (currentProduct.qty <= 0) {
         alert("This masterpiece has already been acquired.");
         return;
     }
+
+    // Safely initialize Cashfree locally so it doesn't block the page load screen
+    const cashfree = Cashfree({
+        mode: "sandbox" // change to "production" when live
+    });
 
     // 1. Prompt for customer details safely
     const customerName = prompt("Please enter your name:") || "Customer";
