@@ -5,7 +5,7 @@ if ('history' in window && 'scrollRestoration' in window.history) {
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 // PASTE YOUR NEW WISHLIST & ORDERS GOOGLE SHEET WEB APP URL HERE:
-const WISHLIST_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw_KE6xV7wDL0qx0B_e06KLwRD-LfByn9wWVSNfNLlIBH-5ZfRW_7NlwdMyyNG5DE7r_A/exec';
+const WISHLIST_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxPAYLd1qivhl04aaIAQaNceSW1IJp_X34oJbKqJBGcqkAV_VcAX2i0lvOtZ12voyXSbQ/exec';
 
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23f6eedf"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Cinzel, serif" font-size="28" fill="%234a0e05"%3EImage+Preparing%3C/text%3E%3C/svg%3E';
 
@@ -133,6 +133,12 @@ function getProductImageUrl(product, width = 800) {
 function sortProductsByPrice(products) {
     return [...products].sort((a, b) => (b.price || 0) - (a.price || 0));
 }
+
+// Initialize Cashfree
+// Set mode to "production" when you are ready to process real money
+const cashfree = Cashfree({
+    mode: "sandbox" 
+});
 
 function getInitialDepartment() {
     const params = new URLSearchParams(window.location.search);
@@ -814,11 +820,11 @@ function toggleWishlist() {
     // ----------------------------------------------
 }
 
-// Purchase Integration with Automated Google Sheets Logging (Inventory Reduction Bypassed)
+// Purchase Integration with Automated Google Sheets Logging (CORS-Proof GET Redirect Flow)
 function handleBuyNow() {
     if (!currentProduct) return;
     
-    // Prevent purchase if the product is already sold out (qty <= 0)
+    // Prevent purchase if the product is already sold out
     if (currentProduct.qty <= 0) {
         alert("This masterpiece has already been acquired.");
         return;
@@ -836,20 +842,10 @@ function handleBuyNow() {
 
     alert("Initiating secure payment gateway...");
 
-    // 2. Fetch payment session ID from your new Google Apps Script Web App
-    fetch(WISHLIST_SHEET_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'text/plain' // Solves redirection issues on Google Apps Script
-        },
-        body: JSON.stringify({
-            action: "create_cashfree_order",
-            amount: currentProduct.price,
-            customerName: customerName,
-            customerPhone: customerPhone,
-            customerEmail: customerEmail
-        })
-    })
+    // 2. Fetch payment session ID from your new Google Apps Script Web App using a CORS-proof GET request
+    const orderUrl = `${WISHLIST_SHEET_URL}?action=create_cashfree_order&amount=${currentProduct.price}&customerName=${encodeURIComponent(customerName)}&customerPhone=${encodeURIComponent(customerPhone)}&customerEmail=${encodeURIComponent(customerEmail)}&productCode=${encodeURIComponent(currentProduct.code)}`;
+
+    fetch(orderUrl)
     .then(res => res.json())
     .then(orderData => {
         if (!orderData.payment_session_id) {
@@ -864,11 +860,12 @@ function handleBuyNow() {
             returnUrl: window.location.href // Redirects back to your site after payment
         })
         .then(function() {
-            // 4. Log successful order inside your "Orders" tab
+            // 4. Log successful order inside your "Orders" tab (uses mode: 'no-cors' to bypass blocks)
             fetch(WISHLIST_SHEET_URL, {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: {
-                    'Content-Type': 'text/plain'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     action: "place_order",
@@ -1062,7 +1059,6 @@ function handlePopState(event) {
 
 document.addEventListener('DOMContentLoaded', init);
 
-// Function to dismiss intro screen
 function dismissalPremiumIntroScreen() {
     const loaderElement = document.getElementById('premium-intro-loader');
     if (loaderElement) {
