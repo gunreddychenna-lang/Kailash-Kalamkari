@@ -1389,3 +1389,32 @@ body.details-mode .header-main-marquee {
     margin-top: 5rem;
     border-top: 1px dashed var(--color-gold-muted);
 }
+/* Premium WhatsApp Inquiry Button Theme styling */
+.whatsapp-btn {
+    width: 100%;
+    padding: 1.1rem 1.8rem;
+    border: 1px solid #25d366;
+    background: rgba(37, 211, 102, 0.08);
+    color: #128c7e;
+    font-family: var(--font-heritage);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    transition: var(--transition-premium);
+    border-radius: 1px;
+}
+
+.whatsapp-btn:hover {
+    background: #25d366;
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(37, 211, 102, 0.2);
+}
+
+.whatsapp-btn:active {
+    transform: scale(0.98);
+}

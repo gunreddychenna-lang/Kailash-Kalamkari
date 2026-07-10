@@ -268,6 +268,7 @@ const elements = {
     addToWishlistBtn: document.getElementById('wishlist-btn'),
     wishlistBtnText: document.getElementById('wishlist-btn-text'),
     buyNowBtn: document.getElementById("buy-now-btn"),
+    whatsappInquiryBtn: document.getElementById("whatsapp-inquiry-btn"),
 };
 
 // Helper: Determine if cached content needs refreshing (11:00 AM or 2:00 PM updates)
@@ -794,7 +795,7 @@ function toggleWishlist() {
     updateWishlistButtonState();
 
     // --- GOOGLE SHEETS WISHLIST TRACKING SYSTEM ---
-    if (typeof WISHLIST_SHEET_URL !== 'undefined' && WISHLIST_SHEET_URL && WISHLIST_SHEET_URL !== 'YOUR_NEW_WISHLIST_SHEET_URL_HERE') {
+    if (typeof WISHLIST_SHEET_URL !== 'undefined' && WISHLIST_SHEET_URL) {
         fetch(WISHLIST_SHEET_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -1086,7 +1087,7 @@ function renderSimilarProducts(product) {
 
 // Function to track unique website traffic sessions silently
 function recordVisitorTraffic() {
-    if (typeof WISHLIST_SHEET_URL !== 'undefined' && WISHLIST_SHEET_URL && WISHLIST_SHEET_URL !== 'https://script.google.com/macros/s/AKfycbw_KE6xV7wDL0qx0B_e06KLwRD-LfByn9wWVSNfNLlIBH-5ZfRW_7NlwdMyyNG5DE7r_A/exec') {
+    if (typeof WISHLIST_SHEET_URL !== 'undefined' && WISHLIST_SHEET_URL) {
         let sessionKey = sessionStorage.getItem('kalamkari_session');
         if (!sessionKey) {
             sessionKey = 'session_' + Math.random().toString(36).substring(2, 15);
@@ -1105,4 +1106,26 @@ function recordVisitorTraffic() {
             .catch(err => console.error("Error recording visitor:", err));
         }
     }
+}
+
+// WhatsApp Inquiry Integration with Dynamic Product Details
+function handleWhatsAppInquiry() {
+    if (!currentProduct) return;
+    
+    const phoneNumber = "919063374020"; // Your WhatsApp Business Number
+    
+    // Create a personalized dynamic message
+    const message = `Namaste, I am interested in inquiring about this Kalamkari masterpiece:
+
+Saree Title: ${currentProduct.title}
+Product Code: ${currentProduct.code}
+Heritage Value: ₹${new Intl.NumberFormat('en-IN').format(currentProduct.price)}
+
+Is this piece currently available in the workshop? Here is the link: ${window.location.href}`;
+    
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+    
+    // Open WhatsApp safely in a new tab
+    window.open(whatsappUrl, '_blank');
 }
