@@ -5,7 +5,7 @@ if ('history' in window && 'scrollRestoration' in window.history) {
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 // PASTE YOUR NEW WISHLIST & ORDERS GOOGLE SHEET WEB APP URL HERE:
-const WISHLIST_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyLGhIW4CaTGk8xGak7gl69hfa9e5S0YsniEoXH9jumpvC33gex1r8rYsPYvPDZvGWy8Q/exec';
+const WISHLIST_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw_KE6xV7wDL0qx0B_e06KLwRD-LfByn9wWVSNfNLlIBH-5ZfRW_7NlwdMyyNG5DE7r_A/exec';
 
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23f6eedf"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Cinzel, serif" font-size="28" fill="%234a0e05"%3EImage+Preparing%3C/text%3E%3C/svg%3E';
 
@@ -298,6 +298,10 @@ function checkIfCacheNeedsRefresh(lastFetchTimestamp) {
 async function init() {
     updateWishlistCount();
     setupEventListeners();
+    
+    // Silently log visitor traffic session
+    recordVisitorTraffic();
+    
     await fetchProducts();
     
     window.history.replaceState({ isInitial: true, department: 'saree' }, '', window.location.href);
@@ -1078,4 +1082,27 @@ function renderSimilarProducts(product) {
 
     // 4. Render them using the existing clean grid rendering system
     renderProducts(similarProducts, similarGrid);
+}
+
+// Function to track unique website traffic sessions silently
+function recordVisitorTraffic() {
+    if (typeof WISHLIST_SHEET_URL !== 'undefined' && WISHLIST_SHEET_URL && WISHLIST_SHEET_URL !== 'https://script.google.com/macros/s/AKfycbw_KE6xV7wDL0qx0B_e06KLwRD-LfByn9wWVSNfNLlIBH-5ZfRW_7NlwdMyyNG5DE7r_A/exec') {
+        let sessionKey = sessionStorage.getItem('kalamkari_session');
+        if (!sessionKey) {
+            sessionKey = 'session_' + Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('kalamkari_session', sessionKey);
+            
+            fetch(WISHLIST_SHEET_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: "record_visitor",
+                    sessionMarker: sessionKey
+                })
+            })
+            .then(() => console.log("Visitor session logged."))
+            .catch(err => console.error("Error recording visitor:", err));
+        }
+    }
 }
