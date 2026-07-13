@@ -101,19 +101,19 @@ function updateDepartmentUrl() {
 }
 
 function updateDepartmentUI() {
-    const activeDepartment = getDepartmentConfig();
-
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         const departmentKey = normalizeDepartment(element.dataset.department);
         element.classList.toggle('active', departmentKey === currentDepartment);
     });
 
     if (elements.searchInput) {
+        const activeDepartment = getDepartmentConfig();
         elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by code, fabric or colour...`;
     }
 }
 
-function setDepartment(department, { updateUrl = true } = {}) {
+// Set Department configuration and manage pushState history
+function setDepartment(department, { updateUrl = true, pushState = true } = {}) {
     const departmentKey = normalizeDepartment(department) || 'saree';
     currentDepartment = departmentKey;
 
@@ -123,11 +123,46 @@ function setDepartment(department, { updateUrl = true } = {}) {
 
     updateDepartmentUI();
     renderFilterButtons();
-    filterAndSearchProducts();
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('department', currentDepartment);
+    url.searchParams.delete('fabric'); // Reset active fabric filter when switching departments
 
     if (updateUrl) {
-        updateDepartmentUrl();
+        if (pushState) {
+            window.history.pushState({ department: currentDepartment }, '', url);
+        } else {
+            window.history.replaceState({ department: currentDepartment }, '', url);
+        }
     }
+
+    filterAndSearchProducts();
+}
+
+// Explicitly handle and record fabric filters in browser history state
+function setFabricFilter(fabricKey, { pushState = true } = {}) {
+    const url = new URL(window.location.href);
+    
+    if (fabricKey && fabricKey !== 'all') {
+        url.searchParams.set('fabric', fabricKey);
+    } else {
+        url.searchParams.delete('fabric');
+    }
+
+    if (pushState) {
+        window.history.pushState({ department: currentDepartment, fabric: fabricKey }, '', url);
+    }
+
+    // Update active highlight classes in the filter elements
+    if (elements.filtersContainer) {
+        const buttons = elements.filtersContainer.querySelectorAll('.filter-btn');
+        buttons.forEach(btn => {
+            const isActive = btn.dataset.filter === fabricKey;
+            btn.classList.toggle('active', isActive);
+        });
+    }
+
+    filterAndSearchProducts();
 }
 
 // State variables
@@ -528,9 +563,8 @@ function attachFilterHandlers() {
     const buttons = elements.filtersContainer.querySelectorAll('.filter-btn');
     buttons.forEach(btn => {
         btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterAndSearchProducts();
+            const fabricKey = btn.dataset.filter;
+            setFabricFilter(fabricKey, { pushState: true });
         });
     });
 }
@@ -692,6 +726,7 @@ function toggleWishlist() {
     updateWishlistButtonState();
 }
 
+// Analytics and Logging functions
 function logWishlistToSheet(productCode, actionType) {
     fetch(TRACKING_API_URL, {
         method: 'POST',
@@ -749,6 +784,8 @@ function recordVisitorSession() {
 // Search & Categories filters implementation
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
+    
+    // Read the active filter direct from active class configuration
     const activeFilterBtn = document.querySelector('.filter-btn.active');
     const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().trim() : 'all';
     
@@ -855,7 +892,7 @@ async function initiateCheckout(product, customerDetails) {
     }
 }
 
-// Gorgeous fallback payment gateway dialog (no-server needed!)
+// Direct Direct QR Payment panel
 function showLocalPaymentGateway(product, customerDetails) {
     const existingPanel = document.getElementById('local-payment-panel');
     if (existingPanel) existingPanel.remove();
@@ -1153,7 +1190,7 @@ function setupEventListeners() {
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
-            setDepartment(element.dataset.department); 
+            setDepartment(element.dataset.department, { updateUrl: true, pushState: true }); 
             if (window.location.hash) {
                 window.location.hash = '';
             } else {
@@ -1185,10 +1222,12 @@ function setupEventListeners() {
     window.history.replaceState({ isDepartmentSelection: true }, '', window.location.href);
 }
 
+// Robust popstate handler that maps navigation state directly to URL parameters
 function handlePopState() {
     const hash = window.location.hash;
     const params = new URLSearchParams(window.location.search);
-    const departmentParam = params.get('department');
+    const departmentParam = params.get('department') || 'saree';
+    const fabricParam = params.get('fabric') || 'all';
 
     if (hash.startsWith('#product/')) {
         const productCode = hash.split('/')[1];
@@ -1207,7 +1246,21 @@ function handlePopState() {
         renderWishlist();
         showView('wishlist');
     } else {
-        setDepartment(departmentParam || 'saree', { updateUrl: false }); 
+        // Catalogue mode view
+        currentDepartment = normalizeDepartment(departmentParam) || 'saree';
+        updateDepartmentUI();
+        renderFilterButtons();
+        
+        // Match active CSS classes on the newly synchronized active fabric filter button
+        if (elements.filtersContainer) {
+            const buttons = elements.filtersContainer.querySelectorAll('.filter-btn');
+            buttons.forEach(btn => {
+                const isActive = btn.dataset.filter === fabricParam;
+                btn.classList.toggle('active', isActive);
+            });
+        }
+
+        filterAndSearchProducts();
         showView('catalogue'); 
     }
 }
