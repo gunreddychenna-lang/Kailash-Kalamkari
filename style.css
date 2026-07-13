@@ -200,7 +200,7 @@ body {
     overflow: hidden;
 }
 
-/* Subtle Silk Print Watermark Behind Header Text */
+/* Silk Print Watermark Behind Header Text */
 .header-watermark {
     position: absolute;
     top: 50%;
@@ -241,7 +241,7 @@ body {
     gap: 0.8rem;
 }
 
-/* Delicate Borderless Social Icons */
+/* Borderless Social Icons */
 .header-social-link {
     display: flex;
     align-items: center;
@@ -312,7 +312,7 @@ body {
     gap: 2rem;
 }
 
-/* LEFT SIDE: ACTIONS (WISHIST/GALLERY PLAQUE) */
+/* ACTIONS (WISHLIST/GALLERY PLAQUE) */
 .header-actions {
     display: flex;
     justify-content: flex-start;
@@ -388,8 +388,7 @@ body {
     transform: scale(0.97);
 }
 
-
-/* CENTER SIDE: ROYAL BRAND SEAL FRAME */
+/* ROYAL BRAND SEAL FRAME */
 .brand-area-wrapper {
     display: flex;
     justify-content: center;
@@ -510,7 +509,6 @@ body {
 .header-spacer-right {
     width: 100%;
 }
-
 
 /* Elegant Zari-Lined Search Frame */
 .search-bar-container {
@@ -746,8 +744,7 @@ body.details-mode .header-main-marquee {
     gap: 2.5rem;
 }
 
-/* PASSE-PARTOUT FRAMED EXHIBIT CARD Layout
-   Dressed in metallic gold gradient frame borders with deep red inner mounts */
+/* PASSE-PARTOUT FRAMED EXHIBIT CARD Layout */
 .product-card {
     background: var(--color-milk-ivory);
     border: 1px solid transparent;
@@ -785,7 +782,6 @@ body.details-mode .header-main-marquee {
     width: 100%;
     padding-top: 135%;
     overflow: hidden;
-    /* Rich Kumkum Red Passe-partout mount background */
     background-color: var(--color-temple-crimson);
     box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.3);
 }
@@ -832,18 +828,6 @@ body.details-mode .header-main-marquee {
     color: var(--color-temple-crimson);
     margin-bottom: 0.4rem;
     text-transform: capitalize;
-}
-
-.product-card-description {
-    font-family: var(--font-clean);
-    font-size: 0.85rem;
-    color: rgba(44, 26, 22, 0.7);
-    margin-bottom: 1rem;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
 }
 
 .product-price {
@@ -968,15 +952,7 @@ body.details-mode .header-main-marquee {
     margin-bottom: 1.8rem;
 }
 
-.product-description {
-    font-family: var(--font-clean);
-    font-size: 1rem;
-    color: rgba(44, 26, 22, 0.85);
-    line-height: 1.7;
-    margin-bottom: 2.2rem;
-}
-
-/* Molten Ghee & Brass Style Price Cards */
+/* Price Cards */
 .price-card {
     background: var(--color-parchment);
     border-left: 4px solid var(--color-temple-crimson);
@@ -1016,7 +992,7 @@ body.details-mode .header-main-marquee {
     color: var(--color-temple-crimson);
 }
 
-/* Premium Traditional Action Buttons */
+/* Action Buttons */
 .action-buttons {
     display: flex;
     flex-direction: column;
@@ -1096,7 +1072,7 @@ body.details-mode .header-main-marquee {
     margin-bottom: 0.9rem;
 }
 
-/* Lightbox overlay system */
+/* Lightbox Overlay System */
 .image-overlay {
     position: fixed;
     inset: 0;
@@ -1311,7 +1287,7 @@ body.details-mode .header-main-marquee {
     letter-spacing: 0.02em;
 }
 
-/* Highly Responsive Fluid Touch Screens Matrix */
+/* Touch Screens Matrix Responsive rules */
 @media (max-width: 1024px) {
     .product-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1330,7 +1306,6 @@ body.details-mode .header-main-marquee {
         gap: 2.8rem;
     }
     
-    /* Elegant Mobile Repositioning */
     .header-main-marquee .header-container {
         grid-template-columns: 1fr;
         gap: 2.5rem;
@@ -1383,12 +1358,14 @@ body.details-mode .header-main-marquee {
         gap: 2.8rem;
     }
 }
-/* Additional Similar Products Section Padding & Separation */
+
+/* Similar Products Section Padding & Separation */
 .similar-products-section {
     padding-top: 4rem;
     margin-top: 5rem;
     border-top: 1px dashed var(--color-gold-muted);
 }
+
 /* Premium WhatsApp Inquiry Button Theme styling */
 .whatsapp-btn {
     width: 100%;
@@ -1417,4 +1394,276 @@ body.details-mode .header-main-marquee {
 
 .whatsapp-btn:active {
     transform: scale(0.98);
+}
+
+/* ================= LUXURIOUS CHECKOUT FORM MODAL ================= */
+.checkout-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 26, 22, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.checkout-modal-overlay.active {
+    opacity: 1;
+}
+
+.checkout-modal-card {
+    background: var(--color-milk-ivory);
+    border: 1px solid transparent;
+    border-image: linear-gradient(135deg, var(--color-antique-gold), var(--color-royal-gold), #fffbfa, var(--color-royal-gold), var(--color-antique-gold)) 1;
+    padding: 2.5rem;
+    max-width: 480px;
+    width: 100%;
+    position: relative;
+    box-shadow: var(--shadow-hover);
+    transform: translateY(20px);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.checkout-modal-overlay.active .checkout-modal-card {
+    transform: translateY(0);
+}
+
+.checkout-modal-card::before {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border: 1px dashed rgba(223, 168, 67, 0.35);
+    pointer-events: none;
+}
+
+.checkout-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.2rem;
+    background: transparent;
+    border: none;
+    font-size: 1.8rem;
+    color: var(--color-temple-crimson);
+    cursor: pointer;
+    z-index: 5;
+    line-height: 1;
+}
+
+.checkout-modal-title {
+    font-family: var(--font-heritage);
+    color: var(--color-temple-crimson);
+    font-size: 1.4rem;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.checkout-modal-subtitle {
+    font-family: var(--font-clean);
+    color: var(--color-roasted-espresso);
+    font-size: 0.85rem;
+    text-align: center;
+    margin-bottom: 1.8rem;
+    opacity: 0.8;
+}
+
+.checkout-form-group {
+    margin-bottom: 1.2rem;
+    position: relative;
+}
+
+.checkout-form-label {
+    display: block;
+    font-family: var(--font-heritage);
+    font-size: 0.75rem;
+    color: var(--color-temple-crimson);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.checkout-form-input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--color-gold-muted);
+    background: var(--color-milk-ivory);
+    color: var(--color-roasted-espresso);
+    font-family: var(--font-clean);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+    border-radius: 0px;
+}
+
+.checkout-form-input:focus {
+    border-color: var(--color-temple-crimson);
+}
+
+.checkout-submit-btn {
+    width: 100%;
+    padding: 1.1rem;
+    background: var(--color-royal-gold);
+    color: var(--color-temple-crimson);
+    border: none;
+    font-family: var(--font-heritage);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: var(--transition-premium);
+}
+
+.checkout-submit-btn:hover {
+    background: var(--color-temple-crimson);
+    color: var(--color-milk-ivory);
+}
+
+/* ================= LUXURIOUS FALLBACK PAYMENT GATEWAY PANEL ================= */
+.payment-panel-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 26, 22, 0.9);
+    backdrop-filter: blur(8px);
+    z-index: 13000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.payment-panel-overlay.active {
+    opacity: 1;
+}
+
+.payment-panel-card {
+    background: var(--color-milk-ivory);
+    border: 2px solid var(--color-royal-gold);
+    padding: 2.5rem;
+    max-width: 520px;
+    width: 100%;
+    position: relative;
+    box-shadow: var(--shadow-hover);
+    transform: translateY(20px);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: center;
+}
+
+.payment-panel-overlay.active .payment-panel-card {
+    transform: translateY(0);
+}
+
+.payment-panel-card::before {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border: 1px dashed rgba(223, 168, 67, 0.4);
+    pointer-events: none;
+}
+
+.payment-panel-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.2rem;
+    background: transparent;
+    border: none;
+    font-size: 1.8rem;
+    color: var(--color-temple-crimson);
+    cursor: pointer;
+    z-index: 5;
+    line-height: 1;
+}
+
+.payment-gateway-header {
+    border-bottom: 1px dashed var(--color-gold-muted);
+    padding-bottom: 1.2rem;
+    margin-bottom: 1.8rem;
+}
+
+.payment-logo {
+    font-family: var(--font-heritage);
+    color: var(--color-temple-crimson);
+    font-size: 1.3rem;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+}
+
+.payment-tagline {
+    font-family: var(--font-clean);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-antique-gold);
+    font-weight: 600;
+}
+
+.payment-amount-display {
+    font-family: var(--font-heritage);
+    font-size: 2.2rem;
+    color: var(--color-temple-crimson);
+    font-weight: 700;
+    margin-top: 0.8rem;
+}
+
+.payment-methods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.payment-method-btn {
+    background: var(--color-parchment);
+    border: 1px solid var(--color-royal-gold);
+    padding: 1.2rem;
+    cursor: pointer;
+    font-family: var(--font-clean);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-temple-crimson);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: var(--transition-premium);
+    width: 100%;
+    text-align: left;
+    border-radius: 0;
+}
+
+.payment-method-btn:hover {
+    background: var(--color-temple-crimson);
+    color: var(--color-milk-ivory);
+    border-color: var(--color-temple-crimson);
+}
+
+.upi-qr-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 1.5rem;
+    animation: viewFadeIn 0.5s ease forwards;
+}
+
+.upi-qr-image {
+    border: 4px solid var(--color-milk-ivory);
+    box-shadow: 0 4px 15px rgba(86, 11, 2, 0.15);
+    margin-bottom: 1.2rem;
+    width: 220px;
+    height: 220px;
+    object-fit: contain;
+}
+
+.success-card {
+    border-color: #2a6b44;
+}
+
+.success-card::before {
+    border-color: rgba(42, 107, 68, 0.35);
 }

@@ -11,7 +11,6 @@
     <link rel="stylesheet" href="style.css">
     
     <!-- Cashfree Web Checkout SDK v3 Integration -->
-    <!-- Cashfree Web Checkout SDK v3 Integration -->
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 </head>
 <body>
@@ -26,7 +25,7 @@
         <div class="loader-border-frame"></div>
         <div class="loader-content">
             <div class="traditional-mandala-wrapper">
-                <svg viewBox="0 0 100 100" class="gold-temple-mandala">
+                <svg viewBox="0 0 100 100" class="gold-temple-mandala" aria-hidden="true">
                     <circle cx="50" cy="50" r="45" fill="none" stroke="#dfa843" stroke-width="1" stroke-dasharray="3 3"/>
                     <circle cx="50" cy="50" r="38" fill="none" stroke="#dfa843" stroke-width="1.5"/>
                     <path d="M50 5 C55 25, 45 25, 50 5 Z" fill="#dfa843"/>
@@ -50,7 +49,7 @@
 
     <header class="main-header">
         <!-- Silk Watermark Graphic inside header -->
-        <svg class="header-watermark" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+        <svg class="header-watermark" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <path d="M50 0 C70 30, 90 20, 100 50 C90 80, 70 70, 50 100 C30 70, 10 80, 0 50 C10 20, 30 30, 50 0 Z" fill="none" stroke="#dfa843" stroke-width="0.3" opacity="0.15"/>
             <circle cx="50" cy="50" r="30" fill="none" stroke="#dfa843" stroke-width="0.2" stroke-dasharray="2 2" opacity="0.2"/>
         </svg>
@@ -74,7 +73,7 @@
                     </a>
                 </div>
                 <div class="header-top-contact">
-                    <span class="temple-bell">🔔</span>
+                    <span class="temple-bell" aria-hidden="true">🔔</span>
                     <a href="tel:+919063374020" class="header-top-phone-link">CALL: +91 9063374020</a>
                 </div>
             </div>
@@ -87,7 +86,7 @@
                 <!-- Left Side Actions: Sacred Gallery Plaque -->
                 <div class="header-actions">
                     <button id="wishlist-trigger" class="wishlist-plaque">
-                        <span class="wishlist-icon">♥</span>
+                        <span class="wishlist-icon" aria-hidden="true">♥</span>
                         <div class="wishlist-text-group">
                             <span class="wishlist-text-primary">Wishlist</span>
                             <span class="wishlist-text-secondary">GALLERY</span>
@@ -98,7 +97,6 @@
 
                 <!-- Central Royal Brand Seal Area -->
                 <div class="brand-area-wrapper">
-                    <!-- Elegant Double line gold border with corners -->
                     <div class="brand-frame">
                         <div class="brand-corner tl"></div>
                         <div class="brand-corner tr"></div>
@@ -107,20 +105,20 @@
                         
                         <div class="brand-content">
                             <div class="sacred-medallion-crest">
-                                <span class="crest-symbol">🕉</span>
+                                <span class="crest-symbol" aria-hidden="true">🕉</span>
                             </div>
                             <h1>KAILASH KALAMKARI</h1>
                             <p class="brand-tagline">Sacred Hand-Painted Silks of Srikalahasti</p>
                             <div class="brand-base-ornament">
                                 <span class="sep-line"></span>
-                                <span class="sep-leaf">⚜</span>
+                                <span class="sep-leaf" aria-hidden="true">⚜</span>
                                 <span class="sep-line"></span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Symmetrical Spacer (Balancing Right Side) -->
+                <!-- Symmetrical Spacer -->
                 <div class="header-spacer-right"></div>
             </div>
         </div>
@@ -128,8 +126,8 @@
 
     <section class="search-bar-container">
         <div class="search-wrapper">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="search-input" placeholder="Search the sacred collection by fabric, color or motif...">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input type="text" id="search-input" aria-label="Search the sacred collection by fabric, color or motif" placeholder="Search the sacred collection by fabric, color or motif...">
         </div>
     </section>
 
@@ -179,7 +177,6 @@
 
                     <h2 id="detail-title" class="detail-title"></h2>
                     <div class="title-accent-line"></div>
-                    <p id="detail-description" class="product-description"></p>
 
                     <div class="price-card">
                         <span class="price-label">Heritage Value</span>
@@ -203,8 +200,8 @@
                 </div>
             </div>
 
-            <!-- Majestic Similar Price Range Collection Section -->
-            <div class="similar-products-section" style="margin-top: 5rem;">
+            <!-- Similar Price Range Collection Section -->
+            <div id="similar-products-section" class="similar-products-section" style="margin-top: 5rem;">
                 <h2 class="section-title">Similar Price Masterpieces</h2>
                 <div class="section-title-divider"></div>
                 <div id="similar-products-grid" class="product-grid"></div>
@@ -278,9 +275,17 @@
         
         <div class="footer-base">
             <p>&copy; 1984 - 2025 Kailash Kalamkari. Hand-Painted with Natural Dyes on Heritage Indian Silks. All Rights Reserved.</p>
+            
+            <!-- Links main website to Admin Panel -->
+            <p style="margin-top: 12px;">
+                <a href="https://kailash-app-6whaw7wpsxgbtx9n6p7appj.streamlit.app" target="_blank" style="color: var(--color-royal-gold); text-decoration: none; font-family: var(--font-heritage); letter-spacing: 0.12em; font-size: 0.75rem;">
+                    ⚜ SECURE ADMINISTRATIVE PORTAL
+                </a>
+            </p>
         </div>
     </footer>
 
+    <!-- Main Application Logic -->
     <script src="script.js"></script>
 </body>
 </html>
