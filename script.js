@@ -249,7 +249,19 @@ function dismissIntroLoader() {
 async function init() {
     updateWishlistCount();
     setupEventListeners();
+    
+    // Safety Fallback: Force dismiss the opening loader after 7 seconds 
+    // to prevent the user from being locked behind a buffering animation if network hangs.
+    const safetyTimeout = setTimeout(() => {
+        console.warn("Safety trigger: Loader forced to dismiss due to prolonged network response.");
+        dismissIntroLoader();
+    }, 7000);
+
     await fetchProducts();
+    
+    // Clear safety timeout if fetch finished successfully
+    clearTimeout(safetyTimeout);
+    
     renderFilterButtons();
     handlePopState();
     
@@ -260,7 +272,7 @@ async function init() {
     isInitialLoad = false;
 }
 
-// Fetch Catalog Data
+// Fetch Catalog Data with Abort Timeout
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block'; 
@@ -282,26 +294,37 @@ async function fetchProducts() {
 
         if (!rawData) {
             console.log('Fetching fresh collection from temple archives...');
-            const response = await fetch(CATALOG_API_URL);
             
-            if (response.status === 429) {
-                throw new Error('429_TOO_MANY_REQUESTS');
-            }
-            
-            rawData = await response.json();
+            // Set up a 6-second abort controller timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
             
             try {
-                localStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
-                localStorage.setItem(CACHE_TIME_KEY, now.toString());
-            } catch (e) {
-                console.warn('Cache write limit exceeded:', e);
+                const response = await fetch(CATALOG_API_URL, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                
+                if (response.status === 429) {
+                    throw new Error('429_TOO_MANY_REQUESTS');
+                }
+                
+                rawData = await response.json();
+                
+                try {
+                    localStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
+                    localStorage.setItem(CACHE_TIME_KEY, now.toString());
+                } catch (e) {
+                    console.warn('Cache write limit exceeded:', e);
+                }
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                throw fetchError;
             }
         }
         
         processProductsData(rawData);
 
     } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching data or timeout exceeded:', error);
         
         const cachedData = localStorage.getItem(CACHE_KEY);
         if (cachedData) {
@@ -319,7 +342,7 @@ async function fetchProducts() {
             elements.spinner.innerHTML = `
                 <div class="error-container" style="padding: 2.5rem; text-align: center; border: 1px dashed var(--color-temple-crimson); background: rgba(86, 11, 2, 0.02); max-width: 500px; margin: 2rem auto;">
                     <p style="color: var(--color-temple-crimson); font-family: var(--font-heritage); font-weight: 600; font-size: 1.1rem; margin-bottom: 0.8rem;">Unable to display our temple archives</p>
-                    <p class="spinner-subtext" style="margin-bottom: 1.5rem;">Connection could not be established. Please check your network and try again.</p>
+                    <p class="spinner-subtext" style="margin-bottom: 1.5rem;">Connection timed out. Please check your network and try again.</p>
                     <button onclick="window.location.reload()" class="buy-btn" style="width: auto; display: inline-flex; padding: 0.8rem 2rem;">Attempt Reconnection</button>
                 </div>
             `;
@@ -726,7 +749,6 @@ function toggleWishlist() {
     updateWishlistButtonState();
 }
 
-// Analytics and Logging functions
 function logWishlistToSheet(productCode, actionType) {
     fetch(TRACKING_API_URL, {
         method: 'POST',
@@ -784,8 +806,6 @@ function recordVisitorSession() {
 // Search & Categories filters implementation
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
-    
-    // Read the active filter direct from active class configuration
     const activeFilterBtn = document.querySelector('.filter-btn.active');
     const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().trim() : 'all';
     
@@ -839,7 +859,6 @@ async function initiateCheckout(product, customerDetails) {
     const { name, phone, email } = customerDetails;
     console.log(`Initiating secure Cashfree order validation sequence for: ${product.code}`);
     
-    // Check if the developer has bypassed the server connection to prevent console errors
     if (typeof BYPASS_APPS_SCRIPT_BACKEND !== 'undefined' && BYPASS_APPS_SCRIPT_BACKEND) {
         console.log('Bypassing Google Sheets Apps Script backend. Launching instant secure payment gateway...');
         showLocalPaymentGateway(product, customerDetails);
@@ -853,7 +872,6 @@ async function initiateCheckout(product, customerDetails) {
     }
 
     try {
-        // Direct GET request with dynamic parameters captured from checkout form
         const orderUrl = `${TRACKING_API_URL}?action=create_cashfree_order&amount=${product.price}&customerPhone=${encodeURIComponent(phone)}&customerName=${encodeURIComponent(name)}&customerEmail=${encodeURIComponent(email)}&productCode=${encodeURIComponent(product.code)}`;
         
         const response = await fetch(orderUrl);
@@ -861,17 +879,14 @@ async function initiateCheckout(product, customerDetails) {
         
         console.log("Cashfree Server Response:", data);
         
-        // Check if there was an authorization or script execution error on the Apps Script end
         if (data && data.error) {
             throw new Error(data.error);
         }
         
         if (data && data.payment_session_id) {
-            // Log order to sheet before redirecting
             const livePaymentId = "live_init_" + data.payment_session_id.substring(0, 10);
             logOrderToSheet(product, livePaymentId, customerDetails);
 
-            // Initialize Cashfree
             const cashfree = Cashfree({
                 mode: CASHFREE_MODE
             });
@@ -887,19 +902,17 @@ async function initiateCheckout(product, customerDetails) {
 
     } catch (error) {
         console.warn('Google Server Authorization Lock / Network issue detected. Opening instant local payment gateway fallback...', error);
-        // Instant Fallback trigger: Launches our custom UPI/Sandbox Gateway immediately
         showLocalPaymentGateway(product, customerDetails);
     }
 }
 
-// Direct Direct QR Payment panel
+// direct local direct QR payment panel
 function showLocalPaymentGateway(product, customerDetails) {
     const existingPanel = document.getElementById('local-payment-panel');
     if (existingPanel) existingPanel.remove();
 
     const formattedPrice = new Intl.NumberFormat('en-IN').format(product.price);
     
-    // Construct dynamic UPI payment URI
     const upiUri = `upi://pay?pa=${encodeURIComponent(MERCHANT_UPI_ID)}&pn=Kailash%20Kalamkari&am=${product.price}&cu=INR&tn=Order%20${encodeURIComponent(product.code)}`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiUri)}`;
 
@@ -930,7 +943,6 @@ function showLocalPaymentGateway(product, customerDetails) {
                 </div>
             </div>
 
-            <!-- Dynamic UPI QR Scan Area -->
             <div id="upi-qr-view" class="upi-qr-container">
                 <p style="font-size: 0.82rem; margin-bottom: 1rem; color: var(--color-temple-crimson); font-weight: 600;">Scan this QR with PhonePe, GPay, Paytm or Bhim App to complete transfer</p>
                 <img class="upi-qr-image" src="${qrUrl}" alt="Scan to pay Kailash Kalamkari">
@@ -941,7 +953,6 @@ function showLocalPaymentGateway(product, customerDetails) {
                 </div>
             </div>
 
-            <!-- Mock Processing Screen -->
             <div id="payment-processing-view" style="display: none; padding: 2rem 0;">
                 <div class="spinner-icon" style="margin-bottom: 1.5rem;"></div>
                 <h4 style="font-family: var(--font-heritage); color: var(--color-temple-crimson); margin-bottom: 0.5rem;">Securing Transaction Session...</h4>
@@ -952,12 +963,10 @@ function showLocalPaymentGateway(product, customerDetails) {
 
     document.body.appendChild(panelOverlay);
 
-    // Fade-in trigger
     setTimeout(() => {
         panelOverlay.classList.add('active');
     }, 10);
 
-    // Event Bindings
     const closeBtn = document.getElementById('close-payment-panel');
     closeBtn.addEventListener('click', () => {
         panelOverlay.classList.remove('active');
@@ -970,12 +979,10 @@ function showLocalPaymentGateway(product, customerDetails) {
     const upiQrView = document.getElementById('upi-qr-view');
     const processingView = document.getElementById('payment-processing-view');
 
-    // On Mobile: Directly open UPI App instead of showing QR code
     payUpiBtn.addEventListener('click', () => {
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         if (isMobile) {
             window.location.href = upiUri;
-            // Transition view to confirmation button
             selectionView.style.display = 'none';
             upiQrView.style.display = 'flex';
         } else {
@@ -984,7 +991,6 @@ function showLocalPaymentGateway(product, customerDetails) {
         }
     });
 
-    // Simulated Success Gateway route
     payMockBtn.addEventListener('click', () => {
         selectionView.style.display = 'none';
         processingView.style.display = 'block';
@@ -998,7 +1004,6 @@ function showLocalPaymentGateway(product, customerDetails) {
         }, 2200);
     });
 
-    // User confirmed scanning and paying
     const confirmUpiBtn = document.getElementById('confirm-upi-payment-btn');
     confirmUpiBtn.addEventListener('click', () => {
         upiQrView.style.display = 'none';
@@ -1014,9 +1019,7 @@ function showLocalPaymentGateway(product, customerDetails) {
     });
 }
 
-// Visualises a highly polished Temple payment success screen
 function executeSuccessPayment(product, txnId, customerDetails) {
-    // Generate silent order tracking post in background
     logOrderToSheet(product, txnId, customerDetails);
 
     const existingSuccess = document.getElementById('success-payment-overlay');
@@ -1074,17 +1077,14 @@ function executeSuccessPayment(product, txnId, customerDetails) {
     returnBtn.addEventListener('click', () => {
         successOverlay.remove();
         document.body.style.overflow = '';
-        window.location.hash = ''; // Redirect back to catalogue view
+        window.location.hash = ''; 
     });
 }
 
-// Dynamically creates and triggers the secure checkout modal
 function openCheckoutModal(product) {
-    // Prevent duplicate modals
     const existingModal = document.getElementById('luxury-checkout-modal');
     if (existingModal) existingModal.remove();
 
-    // Create modal element
     const modalOverlay = document.createElement('div');
     modalOverlay.id = 'luxury-checkout-modal';
     modalOverlay.className = 'checkout-modal-overlay';
@@ -1116,12 +1116,10 @@ function openCheckoutModal(product) {
 
     document.body.appendChild(modalOverlay);
 
-    // Trigger visual fade-in transition
     setTimeout(() => {
         modalOverlay.classList.add('active');
     }, 10);
 
-    // Event listeners for close operations
     const closeBtn = document.getElementById('close-checkout-modal');
     closeBtn.addEventListener('click', () => {
         modalOverlay.classList.remove('active');
@@ -1135,7 +1133,6 @@ function openCheckoutModal(product) {
         }
     });
 
-    // Form Submission handling
     const form = document.getElementById('checkout-details-form');
     form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1146,7 +1143,6 @@ function openCheckoutModal(product) {
         modalOverlay.classList.remove('active');
         setTimeout(() => modalOverlay.remove(), 400);
 
-        // Run Cashfree process with captured inputs
         initiateCheckout(product, { name, phone, email });
     });
 }
@@ -1222,7 +1218,7 @@ function setupEventListeners() {
     window.history.replaceState({ isDepartmentSelection: true }, '', window.location.href);
 }
 
-// Robust popstate handler that maps navigation state directly to URL parameters
+// Map navigation state directly to URL parameters
 function handlePopState() {
     const hash = window.location.hash;
     const params = new URLSearchParams(window.location.search);
@@ -1251,7 +1247,7 @@ function handlePopState() {
         updateDepartmentUI();
         renderFilterButtons();
         
-        // Match active CSS classes on the newly synchronized active fabric filter button
+        // Match active CSS classes on the active fabric filter button
         if (elements.filtersContainer) {
             const buttons = elements.filtersContainer.querySelectorAll('.filter-btn');
             buttons.forEach(btn => {
