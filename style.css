@@ -1667,3 +1667,16 @@ body.details-mode .header-main-marquee {
 .success-card::before {
     border-color: rgba(42, 107, 68, 0.35);
 }
+/* Bulletproof CSS fallback to ensure the splash/intro screen never stays stuck */
+#intro, #loader, #splash, .splash-screen, .intro-screen, #welcome-screen, [class*="intro"], [id*="intro"] {
+    animation: forceHide 0.6s ease 3.5s forwards !important;
+}
+
+@keyframes forceHide {
+    to {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        display: none;
+    }
+}
