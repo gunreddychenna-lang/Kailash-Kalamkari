@@ -992,72 +992,6 @@ body.details-mode .header-main-marquee {
     color: var(--color-temple-crimson);
 }
 
-/* Action Buttons */
-.action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-#wishlist-btn {
-    width: 100%;
-    padding: 1.1rem 1.8rem;
-    border: 1px solid var(--color-temple-crimson);
-    background: transparent;
-    color: var(--color-temple-crimson);
-    font-family: var(--font-heritage);
-    font-size: 0.85rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    transition: var(--transition-premium);
-    border-radius: 1px;
-}
-
-#wishlist-btn:hover {
-    background-color: var(--color-temple-crimson);
-    color: var(--color-milk-ivory);
-}
-
-#wishlist-btn.active {
-    background-color: var(--color-temple-crimson);
-    color: var(--color-milk-ivory);
-}
-
-.buy-btn {
-    width: 100%;
-    padding: 1.2rem 1.8rem;
-    border: none;
-    background: var(--color-royal-gold);
-    color: var(--color-temple-crimson);
-    font-family: var(--font-heritage);
-    font-size: 0.95rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.6rem;
-    transition: var(--transition-premium);
-    box-shadow: 0 4px 15px rgba(223, 168, 67, 0.2);
-    border-radius: 1px;
-}
-
-.buy-btn:hover {
-    background-color: var(--color-antique-gold);
-    color: var(--color-milk-ivory);
-    box-shadow: 0 6px 22px rgba(181, 131, 42, 0.3);
-}
-
-.buy-btn:active, #wishlist-btn:active {
-    transform: scale(0.98);
-}
-
 /* Empty State */
 .empty-state {
     text-align: center;
@@ -1366,24 +1300,100 @@ body.details-mode .header-main-marquee {
     border-top: 1px dashed var(--color-gold-muted);
 }
 
-/* Premium WhatsApp Inquiry Button Theme styling */
-.whatsapp-btn {
-    width: 100%;
-    padding: 1.1rem 1.8rem;
-    border: 1px solid #25d366;
-    background: rgba(37, 211, 102, 0.08);
-    color: #128c7e;
-    font-family: var(--font-heritage);
-    font-size: 0.85rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    cursor: pointer;
+/* ================= OPTIMIZED TOUCH-TARGET ACTION BUTTONS ================= */
+.action-buttons {
     display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: 100%;
+    margin-top: 1.5rem;
+}
+
+.primary-actions-row {
+    width: 100%;
+}
+
+.secondary-actions-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+    width: 100%;
+}
+
+/* Base button properties for tactile interaction */
+.action-buttons button {
+    width: 100%;
+    min-height: 52px; /* Standard optimized touch target height */
+    padding: 0.9rem 1.2rem;
+    font-family: var(--font-heritage);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.6rem;
+    gap: 0.5rem;
+    border-radius: 2px;
     transition: var(--transition-premium);
-    border-radius: 1px;
+    box-shadow: 0 2px 8px rgba(86, 11, 2, 0.04);
+}
+
+.action-buttons button:active {
+    transform: scale(0.97); /* Haptic active scale feedback on tap */
+}
+
+.btn-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+/* Buy Now Button Theme */
+.buy-btn {
+    border: none;
+    background: var(--color-royal-gold);
+    color: var(--color-temple-crimson);
+    font-weight: 700;
+    box-shadow: 0 4px 15px rgba(223, 168, 67, 0.2);
+}
+
+.buy-btn:hover {
+    background-color: var(--color-antique-gold);
+    color: var(--color-milk-ivory);
+    box-shadow: 0 6px 22px rgba(181, 131, 42, 0.3);
+}
+
+/* Gallery/Wishlist Button Theme */
+#wishlist-btn {
+    border: 1px solid var(--color-temple-crimson);
+    background: transparent;
+    color: var(--color-temple-crimson);
+}
+
+#wishlist-btn:hover, #wishlist-btn.active {
+    background-color: var(--color-temple-crimson);
+    color: var(--color-milk-ivory);
+}
+
+/* Share Button Theme */
+.share-btn {
+    border: 1px solid var(--color-gold-muted);
+    background: var(--color-milk-ivory);
+    color: var(--color-roasted-espresso);
+}
+
+.share-btn:hover {
+    border-color: var(--color-temple-crimson);
+    background-color: var(--color-parchment);
+    color: var(--color-temple-crimson);
+}
+
+/* WhatsApp Inquiry Button Theme */
+.whatsapp-btn {
+    border: 1px solid #25d366;
+    background: rgba(37, 211, 102, 0.05);
+    color: #128c7e;
 }
 
 .whatsapp-btn:hover {
@@ -1392,8 +1402,21 @@ body.details-mode .header-main-marquee {
     box-shadow: 0 4px 15px rgba(37, 211, 102, 0.2);
 }
 
-.whatsapp-btn:active {
-    transform: scale(0.98);
+/* Mobile responsive target alterations */
+@media (max-width: 600px) {
+    .action-buttons {
+        gap: 0.65rem;
+    }
+    
+    .secondary-actions-row {
+        gap: 0.65rem;
+    }
+    
+    .action-buttons button {
+        min-height: 48px;
+        font-size: 0.78rem;
+        padding: 0.75rem 1rem;
+    }
 }
 
 /* ================= LUXURIOUS CHECKOUT FORM MODAL ================= */
@@ -1667,6 +1690,7 @@ body.details-mode .header-main-marquee {
 .success-card::before {
     border-color: rgba(42, 107, 68, 0.35);
 }
+
 /* Bulletproof CSS fallback to ensure the splash/intro screen never stays stuck */
 #intro, #loader, #splash, .splash-screen, .intro-screen, #welcome-screen, [class*="intro"], [id*="intro"] {
     animation: forceHide 0.6s ease 3.5s forwards !important;

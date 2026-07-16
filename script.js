@@ -331,8 +331,15 @@ const elements = {
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
     detailFabricHighlight: document.getElementById('detail-fabric-highlight'),
+    
+    // Action Buttons
     addToWishlistBtn: document.getElementById('wishlist-btn'),
-    wishlistBtnText: document.getElementById('wishlist-btn-text')
+    wishlistBtnText: document.getElementById('wishlist-btn-text'),
+    wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
+    shareBtn: document.getElementById('share-btn'),
+    shareBtnText: document.getElementById('share-btn-text'),
+    whatsappInquiryBtn: document.getElementById('whatsapp-inquiry-btn'),
+    buyNowBtn: document.getElementById('buy-now-btn')
 };
 
 // Smooth scroll targeting layout coordinates
@@ -931,7 +938,7 @@ function toggleWishlist() {
     logWishlistActivity(action, currentProduct);
 }
 
-// Added missing function from original code to prevent crashes
+// Render Wishlist Page
 function renderWishlist() {
     if (!elements.wishlistGrid) return;
     
@@ -977,6 +984,48 @@ function updateWishlistCount() {
     if (elements.wishlistCount) elements.wishlistCount.textContent = wishlist.length;
 }
 
+// Dynamic Share Feature Logic
+async function shareProduct() {
+    if (!currentProduct) return;
+    
+    const shareData = {
+        title: currentProduct.title,
+        text: `Explore this hand-painted Kalamkari masterpiece: "${currentProduct.title}" (Code: ${currentProduct.code})`,
+        url: window.location.href
+    };
+    
+    try {
+        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+        } else {
+            // Asynchronous clipboard copy fallback
+            await navigator.clipboard.writeText(window.location.href);
+            if (elements.shareBtnText) {
+                const originalText = elements.shareBtnText.textContent;
+                elements.shareBtnText.textContent = "Link Copied!";
+                setTimeout(() => {
+                    elements.shareBtnText.textContent = originalText;
+                }, 2000);
+            }
+        }
+    } catch (error) {
+        console.error("Error executing share operation:", error);
+    }
+}
+
+// Dynamic WhatsApp Messaging Formatter
+function sendWhatsappInquiry(type = "Inquiry") {
+    if (!currentProduct) return;
+    
+    const prefix = type === "Order Request" 
+        ? "Namaste, I would like to purchase the following hand-painted artwork:"
+        : "Namaste, I am interested in inquiring about this hand-painted masterpiece:";
+        
+    const message = `${prefix}\n\n• Code: ${currentProduct.code}\n• Title: ${currentProduct.title}\n• Fabric: ${currentProduct.fabric}\n• Link: ${window.location.href}`;
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/919063374020?text=${encodedMessage}`, '_blank');
+}
+
 // Event Bindings
 function setupEventListeners() {
     if (elements.backToCatalogueBtn) {
@@ -993,7 +1042,19 @@ function setupEventListeners() {
         });
     }
     
-    if (elements.addToWishlistBtn) elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+    if (elements.addToWishlistBtn) {
+        elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+    }
+    if (elements.shareBtn) {
+        elements.shareBtn.addEventListener('click', shareProduct);
+    }
+    if (elements.whatsappInquiryBtn) {
+        elements.whatsappInquiryBtn.addEventListener('click', () => sendWhatsappInquiry("Inquiry"));
+    }
+    if (elements.buyNowBtn) {
+        elements.buyNowBtn.addEventListener('click', () => sendWhatsappInquiry("Order Request"));
+    }
+    
     if (elements.searchInput) elements.searchInput.addEventListener('input', filterAndSearchProducts);
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
@@ -1064,10 +1125,12 @@ function updateWishlistButtonState() {
     
     if (isInWishlist) {
         elements.addToWishlistBtn.classList.add('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Remove from Wishlist';
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'In Gallery';
+        if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '♥';
     } else {
         elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Wishlist';
+        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Gallery';
+        if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '❤️';
     }
 }
 
