@@ -459,7 +459,23 @@ async function fetchProducts() {
                 'product name', 'saree name', 'dupatta name', 'item name', 'name', 'title', 'product'
             ])).trim();
 
-            const title = customTitle || (fabric ? `${fabric} ${deptSingular}` : `Product ${code}`);
+            // Clean up the fabric string to prevent redundant trailing singular/plural variations
+            let title = customTitle;
+            if (!title) {
+                if (fabric) {
+                    let baseFabric = fabric.trim();
+                    if (departmentKey === 'saree') {
+                        // Safely removes variations of sarees/saree/saris/sari at the end of the text
+                        baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
+                    } else if (departmentKey === 'dupatta') {
+                        // Bulletproof pattern matching any spelling combination of dupata/dupatta/duppatas/etc.
+                        baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
+                    }
+                    title = `${baseFabric} ${deptSingular}`;
+                } else {
+                    title = `Product ${code}`;
+                }
+            }
 
             return {
                 code,
