@@ -587,6 +587,34 @@ function renderProducts(products, container, isSimilar = false) {
             imageWrapper.appendChild(badge);
         }
 
+        // --- NEW CARD QUICK ACTIONS OVERLAY ---
+        const isInWishlist = wishlist.some(item => item.code === product.code);
+        const quickActions = document.createElement('div');
+        quickActions.className = 'card-quick-actions';
+
+        const cardWishlistBtn = document.createElement('button');
+        cardWishlistBtn.className = `card-action-btn card-wishlist-btn ${isInWishlist ? 'active' : ''}`;
+        cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
+        cardWishlistBtn.setAttribute('aria-label', 'Add to Gallery');
+        cardWishlistBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleWishlist(product);
+        };
+
+        const cardShareBtn = document.createElement('button');
+        cardShareBtn.className = 'card-action-btn card-share-btn';
+        cardShareBtn.innerHTML = '🔗';
+        cardShareBtn.setAttribute('aria-label', 'Share Masterpiece');
+        cardShareBtn.onclick = (e) => {
+            e.stopPropagation();
+            shareProduct(product);
+        };
+
+        quickActions.appendChild(cardWishlistBtn);
+        quickActions.appendChild(cardShareBtn);
+        imageWrapper.appendChild(quickActions);
+        // --------------------------------------
+
         const info = document.createElement('div');
         info.className = 'product-info';
         const shortDescription = product.description ? `${String(product.description).trim().slice(0, 120)}${product.description.length > 120 ? '...' : ''}` : '';
@@ -929,13 +957,13 @@ function calculatePriceRanges() {
 }
 
 // Wishlist Logic
-function toggleWishlist() {
-    if (!currentProduct) return;
-    const index = wishlist.findIndex(item => item.code === currentProduct.code);
+function toggleWishlist(product = currentProduct) {
+    if (!product) return;
+    const index = wishlist.findIndex(item => item.code === product.code);
     let action = '';
     
     if (index === -1) {
-        wishlist.push(currentProduct);
+        wishlist.push(product);
         action = 'Added';
     } else {
         wishlist.splice(index, 1);
@@ -951,7 +979,13 @@ function toggleWishlist() {
     updateWishlistCount();
     updateWishlistButtonState();
 
-    logWishlistActivity(action, currentProduct);
+    // Dynamically update UI views to ensure state changes are visible instantly
+    filterAndSearchProducts();
+    if (views.wishlist && views.wishlist.classList.contains('active')) {
+        renderWishlist();
+    }
+
+    logWishlistActivity(action, product);
 }
 
 // Render Wishlist Page
@@ -1001,13 +1035,14 @@ function updateWishlistCount() {
 }
 
 // Dynamic Share Feature Logic
-async function shareProduct() {
-    if (!currentProduct) return;
+async function shareProduct(product = currentProduct) {
+    if (!product) return;
     
+    const shareUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
     const shareData = {
-        title: currentProduct.title,
-        text: `Explore this hand-painted Kalamkari masterpiece: "${currentProduct.title}" (Code: ${currentProduct.code})`,
-        url: window.location.href
+        title: product.title,
+        text: `Explore this hand-painted Kalamkari masterpiece: "${product.title}" (Code: ${product.code})`,
+        url: shareUrl
     };
     
     try {
@@ -1015,14 +1050,8 @@ async function shareProduct() {
             await navigator.share(shareData);
         } else {
             // Asynchronous clipboard copy fallback
-            await navigator.clipboard.writeText(window.location.href);
-            if (elements.shareBtnText) {
-                const originalText = elements.shareBtnText.textContent;
-                elements.shareBtnText.textContent = "Link Copied!";
-                setTimeout(() => {
-                    elements.shareBtnText.textContent = originalText;
-                }, 2000);
-            }
+            await navigator.clipboard.writeText(shareUrl);
+            alert("Masterpiece link copied to clipboard!");
         }
     } catch (error) {
         console.error("Error executing share operation:", error);
@@ -1059,10 +1088,10 @@ function setupEventListeners() {
     }
     
     if (elements.addToWishlistBtn) {
-        elements.addToWishlistBtn.addEventListener('click', toggleWishlist);
+        elements.addToWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
     }
     if (elements.shareBtn) {
-        elements.shareBtn.addEventListener('click', shareProduct);
+        elements.shareBtn.addEventListener('click', () => shareProduct(currentProduct));
     }
     if (elements.whatsappInquiryBtn) {
         elements.whatsappInquiryBtn.addEventListener('click', () => sendWhatsappInquiry("Inquiry"));
@@ -1071,6 +1100,17 @@ function setupEventListeners() {
         elements.buyNowBtn.addEventListener('click', () => sendWhatsappInquiry("Order Request"));
     }
     
+    // Floating detail page quick actions setup
+    const floatingWishlistBtn = document.getElementById('detail-floating-wishlist-btn');
+    if (floatingWishlistBtn) {
+        floatingWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
+    }
+    
+    const floatingShareBtn = document.getElementById('detail-floating-share-btn');
+    if (floatingShareBtn) {
+        floatingShareBtn.addEventListener('click', () => shareProduct(currentProduct));
+    }
+
     if (elements.searchInput) elements.searchInput.addEventListener('input', filterAndSearchProducts);
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
@@ -1147,6 +1187,18 @@ function updateWishlistButtonState() {
         elements.addToWishlistBtn.classList.remove('active');
         if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Gallery';
         if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '❤️';
+    }
+
+    // Update the floating detail page button overlaying the main product detail image
+    const floatingWishlistBtn = document.getElementById('detail-floating-wishlist-btn');
+    if (floatingWishlistBtn) {
+        if (isInWishlist) {
+            floatingWishlistBtn.classList.add('active');
+            floatingWishlistBtn.innerHTML = '♥';
+        } else {
+            floatingWishlistBtn.classList.remove('active');
+            floatingWishlistBtn.innerHTML = '♡';
+        }
     }
 }
 
