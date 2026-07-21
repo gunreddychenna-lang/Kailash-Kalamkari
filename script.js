@@ -338,7 +338,6 @@ const elements = {
     wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
     shareBtn: document.getElementById('share-btn'),
     shareBtnText: document.getElementById('share-btn-text'),
-    whatsappInquiryBtn: document.getElementById('whatsapp-inquiry-btn'),
     buyNowBtn: document.getElementById('buy-now-btn')
 };
 
@@ -1058,15 +1057,11 @@ async function shareProduct(product = currentProduct) {
     }
 }
 
-// Dynamic WhatsApp Messaging Formatter
-function sendWhatsappInquiry(type = "Inquiry") {
+// Dynamic WhatsApp Booking Inquiry Formatter
+function sendWhatsappInquiry() {
     if (!currentProduct) return;
     
-    const prefix = type === "Order Request" 
-        ? "Namaste, I would like to purchase the following hand-painted artwork:"
-        : "Namaste, I am interested in inquiring about this hand-painted masterpiece:";
-        
-    const message = `${prefix}\n\n• Code: ${currentProduct.code}\n• Title: ${currentProduct.title}\n• Fabric: ${currentProduct.fabric}\n• Link: ${window.location.href}`;
+    const message = `Namaste, I would like to book this hand-painted masterpiece:\n\n• Code: ${currentProduct.code}\n• Title: ${currentProduct.title}\n• Fabric: ${currentProduct.fabric}\n• Link: ${window.location.href}`;
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/919063374020?text=${encodedMessage}`, '_blank');
 }
@@ -1093,11 +1088,8 @@ function setupEventListeners() {
     if (elements.shareBtn) {
         elements.shareBtn.addEventListener('click', () => shareProduct(currentProduct));
     }
-    if (elements.whatsappInquiryBtn) {
-        elements.whatsappInquiryBtn.addEventListener('click', () => sendWhatsappInquiry("Inquiry"));
-    }
     if (elements.buyNowBtn) {
-        elements.buyNowBtn.addEventListener('click', () => sendWhatsappInquiry("Order Request"));
+        elements.buyNowBtn.addEventListener('click', sendWhatsappInquiry);
     }
     
     // Floating detail page quick actions setup
