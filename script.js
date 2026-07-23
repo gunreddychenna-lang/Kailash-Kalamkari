@@ -815,55 +815,40 @@ function formatPriceRange(prices) {
 }
 
 // Show Full Details
-function showProductDetails(product) {
-    currentProduct = product;
-    isDetailZoomed = false;
-    
-    if (elements.detailImage) {
-        delete elements.detailImage.dataset.fallbackAttempted;
-        const detailFileId = getGoogleDriveId(product);
-        const detailPrimaryUrl = getProductImageUrl(product, 2000);
-        elements.detailImage.src = detailPrimaryUrl;
-
-        if (detailFileId) {
-            elements.detailImage.onerror = () => {
-                if (!elements.detailImage.dataset.fallbackAttempted) {
-                    elements.detailImage.dataset.fallbackAttempted = "true";
-                    elements.detailImage.src = `https://lh3.googleusercontent.com/d/${detailFileId}=w2000`;
-                } else {
-                    elements.detailImage.src = DEFAULT_IMAGE;
-                }
-            };
-        }
+// Function to tell Google Search that this photo belongs to your website URL
+function injectProductImageSchema(product) {
+    let schemaScript = document.getElementById('product-schema-json');
+    if (!schemaScript) {
+        schemaScript = document.createElement('script');
+        schemaScript.id = 'product-schema-json';
+        schemaScript.type = 'application/ld+json';
+        document.head.appendChild(schemaScript);
     }
-    
-    if (elements.detailTitle) elements.detailTitle.textContent = product.title;
-    
-    if (elements.detailDescription) {
-        if (product.description) {
-            elements.detailDescription.textContent = product.description;
-            elements.detailDescription.style.display = 'block';
-        } else {
-            elements.detailDescription.style.display = 'none';
-        }
-    }
-    
-    const mrp = product.price;
-    const finalPrice = getDiscountedPrice(mrp);
-    if (elements.detailMrp) elements.detailMrp.textContent = new Intl.NumberFormat('en-IN').format(mrp);
-    if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(finalPrice);
-    
-    updateWishlistButtonState();
-    
-    // Add to recently viewed & trigger recommendation grids
-    addToRecentlyViewed(product);
-    renderSameFabricProducts(product);
-    renderSimilarProducts(product);
-    renderQuickCategoryPills(product);
-    renderRecentlyViewedProducts(product);
 
-    showView('details');
-    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+    const imageUrl = getProductImageUrl(product, 2000);
+    const productUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
+
+    const schemaData = {
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": product.title,
+        "image": [imageUrl],
+        "description": product.description || product.title,
+        "sku": product.code,
+        "brand": {
+            "@type": "Brand",
+            "name": "Kailash Kalamkari"
+        },
+        "offers": {
+            "@type": "Offer",
+            "url": productUrl,
+            "priceCurrency": "INR",
+            "price": getDiscountedPrice(product.price),
+            "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+        }
+    };
+
+    schemaScript.textContent = JSON.stringify(schemaData);
 }
 
 // Lightbox Overlay Handlers
