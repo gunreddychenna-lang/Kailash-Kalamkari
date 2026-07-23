@@ -1,7 +1,7 @@
 // === COMPLETE CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyDcmAT6dbng-2H7zrsyGn2qGFPrvyAWK6k27Blou0aEo8TYwCK64fdt0ApGoPhoNlR/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbwBEPn5gXYOLgmMWtsromAJJL08Uai_KxSsEcKce0ZPcb9ttqmFgn0keHbi-3uEv7nWPQ/exec'; 
 
 const CONTACT_PHONE_NUMBER = '+919063374020';
 const DISCOUNT_PERCENTAGE = 10; // Heritage Discount Percentage
