@@ -1,21 +1,40 @@
 // === COMPLETE CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
 
-// Keep this original URL so your products continue to load
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyDcmAT6dbng-2H7zrsyGn2qGFPrvyAWK6k27Blou0aEo8TYwCK64fdt0ApGoPhoNlR/exec'; 
 
-// Use this new URL to log your traffic and wishlist counts to your new Google Sheet
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbznE_kXKH8nxaZuljQBPQRR-Pyp5B4sMlpq05GTnxX9jjT8YrFk4fXaDnqoOb7QaYGF/exec'; 
+const CONTACT_PHONE_NUMBER = '+919063374020';
+const DISCOUNT_PERCENTAGE = 10; // Heritage Discount Percentage
 
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
+
+// State Management
+const DEPARTMENTS = [
+    { key: 'saree', label: 'Sarees', singular: 'Saree' },
+    { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
+];
+
+let allProducts = [];
+let filteredProducts = [];
+let wishlist = JSON.parse(localStorage.getItem('kalamkariWishlist')) || [];
+let recentlyViewed = JSON.parse(localStorage.getItem('kalamkariRecentlyViewed')) || [];
+let currentProduct = null;
+let currentDepartment = getInitialDepartment();
+let isDetailZoomed = false;
+let isOverlayZoomed = false;
+let isInitialLoad = true; 
+
+// Helper to calculate discounted price
+function getDiscountedPrice(price) {
+    return Math.round((price || 0) * (1 - DISCOUNT_PERCENTAGE / 100));
+}
 
 // Extract Google Drive ID cleanly from product fields
 function getGoogleDriveId(product) {
     if (!product) return null;
-    
     if (product.imageId && typeof product.imageId === 'string' && product.imageId.length >= 25) {
         return product.imageId;
     }
-
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
     const isGoogleDrive = rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com') || rawUrl.includes('googleusercontent.com');
     
@@ -29,35 +48,23 @@ function getGoogleDriveId(product) {
     return null;
 }
 
-// Generate the primary image URL
 function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
-
     const fileId = getGoogleDriveId(product);
     if (fileId) {
         return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
     }
-
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
     if (!rawUrl) return DEFAULT_IMAGE;
-
-    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:') || rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
         return rawUrl;
     }
-
-    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        return rawUrl;
-    }
-    
-    if (rawUrl.includes('drive.google.com')) {
-        return 'https://' + rawUrl;
-    }
-
+    if (rawUrl.includes('drive.google.com')) return 'https://' + rawUrl;
     return DEFAULT_IMAGE;
 }
 
 function sortProductsByPrice(products) {
-    return [...products].sort((a, b) => (b.price || 0) - (a.price || 0));
+    return [...products].sort((a, b) => getDiscountedPrice(b.price) - getDiscountedPrice(a.price));
 }
 
 function getInitialDepartment() {
@@ -85,34 +92,21 @@ function inferDepartmentFromText(...values) {
     return normalizeDepartment(combined);
 }
 
-// Push or Replace current location state to allow clean back-button transitions
 function navigateToState(department, fabric, hash = '', push = true) {
     const url = new URL(window.location.href);
+    if (department) url.searchParams.set('department', department);
+    else url.searchParams.delete('department');
     
-    if (department) {
-        url.searchParams.set('department', department);
-    } else {
-        url.searchParams.delete('department');
-    }
-    
-    if (fabric && fabric !== 'all') {
-        url.searchParams.set('fabric', fabric);
-    } else {
-        url.searchParams.delete('fabric');
-    }
+    if (fabric && fabric !== 'all') url.searchParams.set('fabric', fabric);
+    else url.searchParams.delete('fabric');
     
     url.hash = hash;
-    
-    if (push) {
-        window.history.pushState({ department, fabric, hash }, '', url);
-    } else {
-        window.history.replaceState({ department, fabric, hash }, '', url);
-    }
+    if (push) window.history.pushState({ department, fabric, hash }, '', url);
+    else window.history.replaceState({ department, fabric, hash }, '', url);
 }
 
 function updateDepartmentUI() {
     const activeDepartment = getDepartmentConfig();
-
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         const departmentKey = normalizeDepartment(element.dataset.department);
         element.classList.toggle('active', departmentKey === currentDepartment);
@@ -124,105 +118,117 @@ function updateDepartmentUI() {
 }
 
 function setDepartment(department, { pushState = true } = {}) {
-    const departmentKey = normalizeDepartment(department) || 'saree';
-    currentDepartment = departmentKey;
-
-    if (elements.searchInput) {
-        elements.searchInput.value = '';
-    }
-
+    currentDepartment = normalizeDepartment(department) || 'saree';
+    if (elements.searchInput) elements.searchInput.value = '';
     updateDepartmentUI();
     renderFilterButtons();
-
-    if (pushState) {
-        navigateToState(currentDepartment, 'all', '', true);
-    }
-
+    if (pushState) navigateToState(currentDepartment, 'all', '', true);
     filterAndSearchProducts();
 }
 
-// === TELEMETRY TRAFFIC LOGGING FUNCTIONS ===
-
+// Telemetry & Analytics
 function detectTrafficSource() {
     const params = new URLSearchParams(window.location.search);
     const utmSource = params.get('utm_source');
-    
-    if (utmSource) {
-        return utmSource.toLowerCase().trim();
-    }
+    if (utmSource) return utmSource.toLowerCase().trim();
 
     const referrer = document.referrer ? document.referrer.toLowerCase() : '';
     if (referrer.includes('instagram.com')) return 'instagram';
     if (referrer.includes('facebook.com') || referrer.includes('fb.me')) return 'facebook';
     if (referrer.includes('whatsapp.com') || referrer.includes('wa.me')) return 'whatsapp';
-    
     return referrer ? 'other website' : 'direct / organic';
 }
 
 function detectBrowser() {
     const userAgent = navigator.userAgent;
-
     if (userAgent.includes('Chrome') || userAgent.includes('CriOS')) {
-        if (userAgent.includes('Edg') || userAgent.includes('OPR')) {
-            return 'Other Browser';
-        }
+        if (userAgent.includes('Edg') || userAgent.includes('OPR')) return 'Other Browser';
         return 'Google Chrome';
     }
-
-    if (userAgent.includes('Safari') && !userAgent.includes('Chrome') && !userAgent.includes('Chromium')) {
-        return 'Safari';
-    }
-
+    if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari';
     return 'Other Browser';
 }
 
 async function logVisitorTraffic() {
     if (sessionStorage.getItem('trafficLogged') === 'true') return;
 
-    const source = detectTrafficSource();
-    const browser = detectBrowser();
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    let visitorId = localStorage.getItem('kalamkari_visitor_id');
+    let visitorType = 'Returning';
+
+    if (!visitorId) {
+        visitorId = 'visitor-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('kalamkari_visitor_id', visitorId);
+        visitorType = 'New';
+    }
+
+    let locationData = { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Unknown' };
+
+    try {
+        const geoResponse = await fetch('https://ipwho.is/');
+        const geoJson = await geoResponse.json();
+        if (geoJson && geoJson.success) {
+            locationData.city = geoJson.city || 'Unknown';
+            locationData.region = geoJson.region || 'Unknown';
+            locationData.country = geoJson.country || 'Unknown';
+            locationData.ip = geoJson.ip ? geoJson.ip.replace(/\d+$/, 'xxx') : 'Unknown';
+        }
+    } catch (geoError) {
+        try {
+            const fallbackResponse = await fetch('https://ipapi.co/json/');
+            const fallbackJson = await fallbackResponse.json();
+            if (fallbackJson && !fallbackJson.error) {
+                locationData.city = fallbackJson.city || 'Unknown';
+                locationData.region = fallbackJson.region || 'Unknown';
+                locationData.country = fallbackJson.country_name || 'Unknown';
+                locationData.ip = fallbackJson.ip ? fallbackJson.ip.replace(/\d+$/, 'xxx') : 'Unknown';
+            }
+        } catch (fallbackError) {
+            console.error('Geolocation fallback failed:', fallbackError);
+        }
+    }
 
     try {
         await fetch(ANALYTICS_API_URL, {
             method: 'POST',
             mode: 'no-cors', 
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'logTraffic',
-                timestamp: timestamp,
-                source: source,
-                browser: browser,
+                timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+                source: detectTrafficSource(),
+                browser: detectBrowser(),
                 pageUrl: window.location.href,
                 userAgent: navigator.userAgent,
+                visitorId: visitorId,
+                visitorType: visitorType,
+                city: locationData.city,
+                region: locationData.region,
+                country: locationData.country,
+                ip: locationData.ip,
                 wishlistCount: wishlist.length
             })
         });
         sessionStorage.setItem('trafficLogged', 'true');
     } catch (error) {
-        console.error('Failed to log traffic data:', error);
+        console.error('Failed to log traffic:', error);
     }
 }
 
 async function logWishlistActivity(action, product) {
     if (!product) return;
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-
     try {
         await fetch(ANALYTICS_API_URL, {
             method: 'POST',
             mode: 'no-cors', 
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'logWishlist',
-                timestamp: timestamp,
+                timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
                 wishlistAction: action,
                 productCode: product.code,
                 productTitle: product.title,
+                price: getDiscountedPrice(product.price),
+                fabric: product.fabric || '',
                 wishlistCount: wishlist.length
             })
         });
@@ -231,74 +237,38 @@ async function logWishlistActivity(action, product) {
     }
 }
 
-// Automatically dismiss stuck loader or intro splash screen
 function hideIntroAnimation() {
-    const selectors = [
-        '#intro', '#loader', '#splash', '#welcome', '#splash-screen', '#intro-loader', '#intro-screen', '#loading-screen',
-        '.intro', '.loader', '.splash', '.splash-screen', '.intro-screen', '.intro-animation', '.loading-screen', '.welcome-screen'
-    ];
-    
-    let introElement = null;
-    for (const selector of selectors) {
-        const el = document.querySelector(selector);
-        if (el) {
-            introElement = el;
-            break;
-        }
-    }
-    
-    // Auto-detection fallback: search for container containing Kailash brand texts
-    if (!introElement) {
-        const possibleContainers = Array.from(document.querySelectorAll('h1, h2, div, section, span, p'));
-        const matchedElement = possibleContainers.find(el => {
-            const txt = el.textContent.toLowerCase();
-            return txt.includes('kailash') || txt.includes('eternal heritage') || txt.includes('hand-painted devotion');
-        });
-        
-        if (matchedElement) {
-            let topParent = matchedElement;
-            while (topParent && topParent.parentElement && topParent.parentElement !== document.body) {
-                topParent = topParent.parentElement;
-            }
-            if (topParent && topParent !== document.body && topParent.tagName !== 'HEADER') {
-                introElement = topParent;
-            }
-        }
-    }
-
-    if (introElement) {
-        // Apply active CSS states
-        introElement.classList.add('fade-out', 'hidden', 'inactive');
-        
-        // Inline fallback styling guarantees transparency/dismissal
-        introElement.style.transition = 'opacity 0.8s ease, visibility 0.8s ease';
-        introElement.style.opacity = '0';
-        introElement.style.visibility = 'hidden';
-        introElement.style.pointerEvents = 'none';
-        
-        setTimeout(() => {
-            introElement.style.display = 'none';
-        }, 800);
+    const loader = document.getElementById('premium-intro-loader');
+    if (loader) {
+        loader.classList.add('fade-out');
+        setTimeout(() => loader.style.display = 'none', 800);
     }
 }
 
-// State
-const DEPARTMENTS = [
-    { key: 'saree', label: 'Sarees', singular: 'Saree' },
-    { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
-];
+function setupFloatingWhatsapp() {
+    const waBtn = document.getElementById('floating-whatsapp');
+    if (waBtn) {
+        const text = encodeURIComponent("Namaste! I am visiting your Kailash Kalamkari website and would love to know more about your hand-painted collection.");
+        waBtn.href = `https://wa.me/${CONTACT_PHONE_NUMBER.replace(/[^0-9]/g, '')}?text=${text}`;
+    }
+}
 
-let allProducts = [];
-let filteredProducts = [];
-let wishlist = JSON.parse(localStorage.getItem('kalamkariWishlist')) || [];
-let currentProduct = null;
-let currentDepartment = getInitialDepartment();
-let isDetailZoomed = false;
-let isOverlayZoomed = false;
-let isInitialLoad = true; 
-let sessionPushedStates = 0;
+function showToast(message) {
+    let toast = document.getElementById('toast-notification');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-notification';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 2500);
+}
 
-// DOM Elements
+// DOM Elements Container
 const views = {
     catalogue: document.getElementById('catalogue-view'),
     details: document.getElementById('product-details-view'),
@@ -310,72 +280,57 @@ const elements = {
     wishlistGrid: document.getElementById('wishlist-grid'),
     spinner: document.getElementById('loading-spinner'),
     searchInput: document.getElementById('search-input'),
-    filtersContainer: document.getElementById('category-filters') || document.querySelector('.category-filters'),
+    filtersContainer: document.getElementById('category-filters'),
     wishlistCount: document.getElementById('wishlist-count'),
     viewWishlistBtn: document.getElementById('wishlist-trigger'),
     backToCatalogueBtn: document.getElementById('back-to-catalogue'),
     backFromWishlistBtn: document.getElementById('back-from-wishlist'),
     emptyWishlistMsg: document.getElementById('wishlist-empty'),
-    collectionCards: document.querySelectorAll('.collection-card'),
-    departmentButtons: document.querySelectorAll('.department-btn'),
     
-    // Details View Elements
+    // Details View
     detailImage: document.getElementById('detail-image'),
     detailImageSection: document.querySelector('.product-image-section'),
     overlay: document.getElementById('image-overlay'),
     overlayImage: document.getElementById('overlay-image'),
     overlayClose: document.getElementById('overlay-close'),
-    detailCode: document.getElementById('detail-code'),
-    detailStock: document.getElementById('detail-stock'), 
     detailTitle: document.getElementById('detail-title'),
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
-    detailFabricHighlight: document.getElementById('detail-fabric-highlight'),
+    detailMrp: document.getElementById('detail-mrp'),
     
-    // Action Buttons
+    // Interactive Tags/Pills
+    detailWishlistPill: document.getElementById('detail-wishlist-pill'),
+    detailWishlistPillIcon: document.getElementById('detail-wishlist-pill-icon'),
+    detailWishlistPillText: document.getElementById('detail-wishlist-pill-text'),
+    detailSharePill: document.getElementById('detail-share-pill'),
+    
+    // Actions
     addToWishlistBtn: document.getElementById('wishlist-btn'),
     wishlistBtnText: document.getElementById('wishlist-btn-text'),
     wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
     shareBtn: document.getElementById('share-btn'),
-    shareBtnText: document.getElementById('share-btn-text'),
-    buyNowBtn: document.getElementById('buy-now-btn')
+    bookNowBtn: document.getElementById('book-now-btn')
 };
 
-// Smooth scroll targeting layout coordinates
+// Smooth Scroll Helper
 function scrollToDepartment(smooth = true) {
     if (isInitialLoad) return;
-    
-    const performScroll = () => {
-        const target = document.querySelector('.department-bar');
-        if (target) {
-            const targetY = target.offsetTop;
-            window.scrollTo({
-                top: targetY,
-                behavior: smooth ? 'smooth' : 'auto'
-            });
-        }
-    };
-
-    performScroll();
-    setTimeout(performScroll, 50);
-    setTimeout(performScroll, 150);
-    setTimeout(performScroll, 300);
+    const target = document.querySelector('.sticky-nav-container') || document.querySelector('.department-bar');
+    if (target) {
+        window.scrollTo({ top: target.offsetTop, behavior: smooth ? 'smooth' : 'auto' });
+    }
 }
 
-// Clean UI Back button handler
 function goBack() {
     window.history.back();
 }
 
-// Initialize
+// Main App Initialization
 async function init() {
-    if ('scrollRestoration' in history) {
-        history.scrollRestoration = 'manual';
-    }
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     updateWishlistCount();
     setupEventListeners();
-    
-    // Send visit log data silently to Google Sheets
+    setupFloatingWhatsapp();
     logVisitorTraffic();
 
     await fetchProducts();
@@ -385,15 +340,12 @@ async function init() {
     const initialFabric = params.get('fabric') || 'all';
 
     navigateToState(initialDept, initialFabric, window.location.hash, false);
-
     handlePopState(); 
     isInitialLoad = false;
-    
-    // Smoothly hide any active or stuck intro screen
     hideIntroAnimation();
 }
 
-// Fetch Data
+// Fetch Master Catalogue
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block'; 
@@ -403,11 +355,7 @@ async function fetchProducts() {
         
         const getFieldValue = (item, keys) => {
             const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            
-            const normalizedEntries = Object.entries(item).map(([itemKey, value]) => [
-                normalize(itemKey),
-                value
-            ]);
+            const normalizedEntries = Object.entries(item).map(([itemKey, value]) => [normalize(itemKey), value]);
 
             for (const key of keys) {
                 const normalizedKey = normalize(key);
@@ -415,9 +363,7 @@ async function fetchProducts() {
 
                 if (value === undefined || value === null) {
                     const matchedEntry = normalizedEntries.find(([itemKey]) => itemKey === normalizedKey);
-                    if (matchedEntry) {
-                        value = matchedEntry[1];
-                    }
+                    if (matchedEntry) value = matchedEntry[1];
                 }
 
                 if (value !== undefined && value !== null && String(value).trim() !== '') {
@@ -429,7 +375,7 @@ async function fetchProducts() {
 
         allProducts = data.map(item => {
             function parsePrice(val) {
-                if (val === undefined || val === null || String(val).trim() === '') return 0;
+                if (!val) return 0;
                 const cleaned = String(val).replace(/[^0-9.\-]/g, '');
                 const n = Number(cleaned);
                 return isNaN(n) ? 0 : n;
@@ -450,26 +396,17 @@ async function fetchProducts() {
             if (isNaN(qty)) qty = 1;
 
             const description = String(getFieldValue(item, ['description', 'product description', 'desc'])).trim();
-
             const deptConfig = DEPARTMENTS.find(d => d.key === departmentKey) || { singular: 'Product' };
             const deptSingular = deptConfig.singular || 'Product';
 
-            const customTitle = String(getFieldValue(item, [
-                'product name', 'saree name', 'dupatta name', 'item name', 'name', 'title', 'product'
-            ])).trim();
+            const customTitle = String(getFieldValue(item, ['product name', 'saree name', 'dupatta name', 'item name', 'name', 'title'])).trim();
 
-            // Clean up the fabric string to prevent redundant trailing singular/plural variations
             let title = customTitle;
             if (!title) {
                 if (fabric) {
                     let baseFabric = fabric.trim();
-                    if (departmentKey === 'saree') {
-                        // Safely removes variations of sarees/saree/saris/sari at the end of the text
-                        baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
-                    } else if (departmentKey === 'dupatta') {
-                        // Bulletproof pattern matching any spelling combination of dupata/dupatta/duppatas/etc.
-                        baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
-                    }
+                    if (departmentKey === 'saree') baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
+                    else if (departmentKey === 'dupatta') baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
                     title = `${baseFabric} ${deptSingular}`;
                 } else {
                     title = `Product ${code}`;
@@ -477,18 +414,9 @@ async function fetchProducts() {
             }
 
             return {
-                code,
-                title, 
-                fabric,
-                category,
-                department,
-                departmentKey,
+                code, title, fabric, category, department, departmentKey,
                 price: parsePrice(item.price || item.Price || ''),
-                qty: qty,
-                imageLink,
-                thumbnail,
-                imageId,
-                description
+                qty, imageLink, thumbnail, imageId, description
             };
         }).filter(item => item.code && item.price > 0);
 
@@ -509,7 +437,6 @@ async function fetchProducts() {
         updateDepartmentUI();
         renderFilterButtons();
         filterAndSearchProducts();
-        calculatePriceRanges();
     } catch (error) {
         console.error('Error fetching data:', error);
         if (elements.spinner) {
@@ -518,7 +445,7 @@ async function fetchProducts() {
     }
 }
 
-// Render Product Grid
+// Render Products Grid with MRP & Discount
 function renderProducts(products, container, isSimilar = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -531,7 +458,9 @@ function renderProducts(products, container, isSimilar = false) {
     products.forEach(product => {
         const card = document.createElement('div');
         card.className = 'product-card';
-        
+        card.dataset.code = product.code;
+        if (product.qty <= 0) card.classList.add('sold-out');
+
         card.onclick = () => {
             if (isSimilar) {
                 const url = new URL(window.location.href);
@@ -539,16 +468,14 @@ function renderProducts(products, container, isSimilar = false) {
                 window.history.replaceState({ isDepartmentSelection: true }, '', url);
                 handlePopState();
             } else {
-                sessionPushedStates++;
                 window.location.hash = `#product/${product.code}`;
             }
         };
 
-        if (product.qty <= 0) {
-            card.classList.add('sold-out');
-        }
-
-        const formattedPrice = new Intl.NumberFormat('en-IN').format(product.price);
+        const mrp = product.price;
+        const finalPrice = getDiscountedPrice(mrp);
+        const formattedMrp = new Intl.NumberFormat('en-IN').format(mrp);
+        const formattedFinalPrice = new Intl.NumberFormat('en-IN').format(finalPrice);
 
         const imageWrapper = document.createElement('div');
         imageWrapper.className = 'product-image-wrapper';
@@ -565,13 +492,10 @@ function renderProducts(products, container, isSimilar = false) {
             img.onerror = () => {
                 if (!img.dataset.fallbackAttempted) {
                     img.dataset.fallbackAttempted = "true";
-                    if (primaryUrl.includes('drive.google.com/thumbnail')) {
-                        img.src = `https://lh3.googleusercontent.com/d/${fileId}=w800`;
-                    } else {
-                        img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
-                    }
-                } else if (img.dataset.fallbackAttempted === "true") {
-                    img.dataset.fallbackAttempted = "failed_all";
+                    img.src = primaryUrl.includes('drive.google.com/thumbnail') 
+                        ? `https://lh3.googleusercontent.com/d/${fileId}=w800`
+                        : `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+                } else {
                     img.src = DEFAULT_IMAGE; 
                 }
             };
@@ -586,7 +510,6 @@ function renderProducts(products, container, isSimilar = false) {
             imageWrapper.appendChild(badge);
         }
 
-        // --- NEW CARD QUICK ACTIONS OVERLAY ---
         const isInWishlist = wishlist.some(item => item.code === product.code);
         const quickActions = document.createElement('div');
         quickActions.className = 'card-quick-actions';
@@ -594,7 +517,6 @@ function renderProducts(products, container, isSimilar = false) {
         const cardWishlistBtn = document.createElement('button');
         cardWishlistBtn.className = `card-action-btn card-wishlist-btn ${isInWishlist ? 'active' : ''}`;
         cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
-        cardWishlistBtn.setAttribute('aria-label', 'Add to Gallery');
         cardWishlistBtn.onclick = (e) => {
             e.stopPropagation();
             toggleWishlist(product);
@@ -603,7 +525,6 @@ function renderProducts(products, container, isSimilar = false) {
         const cardShareBtn = document.createElement('button');
         cardShareBtn.className = 'card-action-btn card-share-btn';
         cardShareBtn.innerHTML = '🔗';
-        cardShareBtn.setAttribute('aria-label', 'Share Masterpiece');
         cardShareBtn.onclick = (e) => {
             e.stopPropagation();
             shareProduct(product);
@@ -612,16 +533,33 @@ function renderProducts(products, container, isSimilar = false) {
         quickActions.appendChild(cardWishlistBtn);
         quickActions.appendChild(cardShareBtn);
         imageWrapper.appendChild(quickActions);
-        // --------------------------------------
 
         const info = document.createElement('div');
         info.className = 'product-info';
-        const shortDescription = product.description ? `${String(product.description).trim().slice(0, 120)}${product.description.length > 120 ? '...' : ''}` : '';
+        const shortDescription = product.description ? `${String(product.description).trim().slice(0, 110)}${product.description.length > 110 ? '...' : ''}` : '';
         info.innerHTML = `
             <h3 class="product-title">${product.title}</h3>
             ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
-            <div class="product-price">Rs. ${formattedPrice}</div>
+            <div class="product-price-row">
+                <span class="mrp-price">Rs. ${formattedMrp}</span>
+                <span class="product-price">Rs. ${formattedFinalPrice}</span>
+                <span class="discount-badge">${DISCOUNT_PERCENTAGE}% OFF</span>
+            </div>
+            <button class="card-book-now-btn" aria-label="Book Video Call">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                </svg>
+                <span>Book Video Call</span>
+            </button>
         `;
+
+        const cardBookBtn = info.querySelector('.card-book-now-btn');
+        if (cardBookBtn) {
+            cardBookBtn.onclick = (e) => {
+                e.stopPropagation();
+                handleBookNowForProduct(product);
+            };
+        }
 
         card.appendChild(imageWrapper);
         card.appendChild(info);
@@ -629,42 +567,156 @@ function renderProducts(products, container, isSimilar = false) {
     });
 }
 
-// Render Similar Products
-function renderSimilarProducts(currentProduct) {
-    const similarSection = document.getElementById('similar-products-section');
-    const similarContainer = document.getElementById('similar-products-grid');
-    if (!similarSection || !similarContainer) return;
-
-    let similar = allProducts.filter(p => 
-        p.departmentKey === currentProduct.departmentKey &&
-        p.fabric.toLowerCase() === currentProduct.fabric.toLowerCase() && 
-        p.code !== currentProduct.code
-    );
-
-    let higherPriced = similar
-        .filter(p => p.price > currentProduct.price)
-        .sort((a, b) => b.price - a.price);
-
-    if (higherPriced.length === 0) {
-        const minPrice = currentProduct.price * 0.7;
-        const maxPrice = currentProduct.price * 1.3;
-        higherPriced = allProducts.filter(p => 
-            p.departmentKey === currentProduct.departmentKey &&
-            p.code !== currentProduct.code && 
-            p.price >= minPrice && 
-            p.price <= maxPrice
-        ).sort((a, b) => b.price - a.price);
-    }
-
-    if (higherPriced.length > 0) {
-        similarSection.style.display = 'block';
-        renderProducts(higherPriced.slice(0, 4), similarContainer, true); 
-    } else {
-        similarSection.style.display = 'none';
+// === RECENTLY VIEWED LOGIC ===
+function addToRecentlyViewed(product) {
+    if (!product || !product.code) return;
+    recentlyViewed = recentlyViewed.filter(item => item.code !== product.code);
+    recentlyViewed.unshift(product);
+    if (recentlyViewed.length > 8) recentlyViewed = recentlyViewed.slice(0, 8);
+    try {
+        localStorage.setItem('kalamkariRecentlyViewed', JSON.stringify(recentlyViewed));
+    } catch (e) {
+        console.error("Error saving recently viewed to local storage", e);
     }
 }
 
-// Navigation & Views
+function renderRecentlyViewedProducts(currentProduct) {
+    const section = document.getElementById('recently-viewed-section');
+    const container = document.getElementById('recently-viewed-grid');
+    if (!section || !container) return;
+
+    const itemsToDisplay = recentlyViewed.filter(p => p.code !== currentProduct.code);
+    if (itemsToDisplay.length > 0) {
+        section.style.display = 'block';
+        renderProducts(itemsToDisplay.slice(0, 8), container, true);
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+// === GRID 1: MORE IN SAME FABRIC ===
+function renderSameFabricProducts(currentProduct) {
+    const section = document.getElementById('same-fabric-section');
+    const container = document.getElementById('same-fabric-grid');
+    const titleEl = document.getElementById('same-fabric-title');
+    if (!section || !container) return;
+
+    const sameFabricProducts = allProducts.filter(p => 
+        p.departmentKey === currentProduct.departmentKey &&
+        p.fabric.toLowerCase().trim() === currentProduct.fabric.toLowerCase().trim() && 
+        p.code !== currentProduct.code
+    );
+
+    if (sameFabricProducts.length > 0) {
+        if (titleEl) titleEl.textContent = `More in ${currentProduct.fabric}`;
+        section.style.display = 'block';
+        renderProducts(sameFabricProducts.slice(0, 8), container, true);
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+// === GRID 2: SIMILAR PRICE RANGE PRODUCTS (EXCLUDES SAME FABRIC) ===
+function renderSimilarProducts(currentProduct) {
+    const section = document.getElementById('similar-products-section');
+    const container = document.getElementById('similar-products-grid');
+    const titleEl = document.getElementById('similar-products-title');
+    if (!section || !container) return;
+
+    const currentPrice = currentProduct.price;
+    const currentFabric = (currentProduct.fabric || '').toLowerCase().trim();
+
+    let priceMatches = allProducts.filter(p => 
+        p.code !== currentProduct.code &&
+        p.fabric.toLowerCase().trim() !== currentFabric && 
+        Math.abs(p.price - currentPrice) / currentPrice <= 0.25
+    );
+
+    priceMatches.sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice));
+
+    if (priceMatches.length === 0) {
+        priceMatches = allProducts.filter(p => 
+            p.code !== currentProduct.code &&
+            p.fabric.toLowerCase().trim() !== currentFabric
+        ).sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice));
+    }
+
+    if (priceMatches.length > 0) {
+        if (titleEl) titleEl.textContent = 'Similar Price Range Masterpieces';
+        section.style.display = 'block';
+        renderProducts(priceMatches.slice(0, 8), container, true);
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+// === GRID 3: EXPLORE MORE COLLECTIONS (SEPARATE PICTURE GRIDS PER FABRIC) ===
+function renderQuickCategoryPills(currentProd = currentProduct) {
+    const container = document.getElementById('quick-category-pills');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const targetDept = currentProd ? currentProd.departmentKey : currentDepartment;
+    const deptProducts = allProducts.filter(p => p.departmentKey === targetDept);
+
+    const fabricMap = new Map();
+    deptProducts.forEach(product => {
+        const fabric = (product.fabric || '').trim();
+        if (!fabric) return;
+        const key = fabric.toLowerCase().replace(/\s+/g, ' ').trim();
+
+        if (!fabricMap.has(key)) {
+            const deptConfig = DEPARTMENTS.find(d => d.key === targetDept) || { singular: 'Product', label: 'Products' };
+            const isPluralFabric = fabric.toLowerCase().includes('saree') || fabric.toLowerCase().includes('sari') || fabric.toLowerCase().includes('dupatta');
+            
+            fabricMap.set(key, {
+                key: key,
+                fabricName: fabric,
+                label: isPluralFabric ? fabric : `${fabric} ${deptConfig.label}`,
+                products: []
+            });
+        }
+        fabricMap.get(key).products.push(product);
+    });
+
+    if (fabricMap.size === 0) return;
+
+    const gridsWrapper = document.createElement('div');
+    gridsWrapper.className = 'fabric-grids-wrapper';
+
+    fabricMap.forEach((item) => {
+        const block = document.createElement('div');
+        block.className = 'fabric-collection-block';
+        block.dataset.fabric = item.key;
+
+        const blockTitle = document.createElement('h3');
+        blockTitle.className = 'fabric-block-title';
+        blockTitle.innerHTML = `
+            <span>${item.label}</span>
+            <button class="view-all-fabric-btn">View All (${item.products.length}) &rarr;</button>
+        `;
+        
+        const viewAllBtn = blockTitle.querySelector('.view-all-fabric-btn');
+        viewAllBtn.onclick = () => {
+            setDepartment(targetDept, { pushState: false });
+            navigateToState(targetDept, item.key, '', true);
+            syncFabricFilterUI(item.key);
+            showView('catalogue');
+            scrollToDepartment(true);
+        };
+
+        const grid = document.createElement('div');
+        grid.className = 'product-grid horizontal-scroll-grid';
+        renderProducts(item.products.slice(0, 8), grid, true);
+
+        block.appendChild(blockTitle);
+        block.appendChild(grid);
+        gridsWrapper.appendChild(block);
+    });
+
+    container.appendChild(gridsWrapper);
+}
+
 function showView(viewName) {
     Object.values(views).forEach(v => v?.classList.remove('active'));
     views[viewName]?.classList.add('active');
@@ -673,34 +725,29 @@ function showView(viewName) {
         document.body.classList.add('details-mode');
     } else {
         document.body.classList.remove('details-mode');
-        if (viewName === 'catalogue') {
-            scrollToDepartment(true);
-        } else {
-            window.scrollTo(0, 0);
-        }
+        if (viewName === 'catalogue') scrollToDepartment(true);
+        else window.scrollTo(0, 0);
     }
 }
 
 function renderFilterButtons() {
-    elements.filtersContainer = elements.filtersContainer || document.getElementById('category-filters') || document.querySelector('.category-filters');
     if (!elements.filtersContainer) return;
-
     const departmentProducts = getDepartmentProducts();
     const fabricMap = new Map();
+
     departmentProducts.forEach(product => {
         const fabric = (product.fabric || 'Unknown').trim();
         if (!fabric) return;
-
         const key = fabric.toLowerCase().replace(/\s+/g, ' ').trim();
         if (!fabricMap.has(key)) {
             fabricMap.set(key, { label: fabric, prices: [] });
         }
-        fabricMap.get(key).prices.push(product.price || 0);
+        fabricMap.get(key).prices.push(getDiscountedPrice(product.price) || 0);
     });
 
     elements.filtersContainer.innerHTML = '';
-
     const activeDepartment = getDepartmentConfig();
+    
     const allButton = document.createElement('button');
     allButton.className = 'filter-btn active';
     allButton.dataset.filter = 'all';
@@ -731,25 +778,20 @@ function attachFilterHandlers() {
         btn.addEventListener('click', () => {
             buttons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
-            const filterTerm = btn.dataset.filter;
-            navigateToState(currentDepartment, filterTerm, '', true);
-            
+            navigateToState(currentDepartment, btn.dataset.filter, '', true);
             filterAndSearchProducts();
             scrollToDepartment(true);
         });
     });
 }
 
-// Sync active classes to filter buttons on backward/forward navigation
 function syncFabricFilterUI(fabricParam) {
     if (!elements.filtersContainer) return;
     const buttons = elements.filtersContainer.querySelectorAll('.filter-btn');
     let matched = false;
     
     buttons.forEach(btn => {
-        const btnFilter = btn.dataset.filter;
-        if (btnFilter === fabricParam) {
+        if (btn.dataset.filter === fabricParam) {
             btn.classList.add('active');
             matched = true;
         } else {
@@ -758,74 +800,44 @@ function syncFabricFilterUI(fabricParam) {
     });
     
     if (!matched && buttons.length > 0) {
-        buttons.forEach(btn => {
-            if (btn.dataset.filter === 'all') {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
+        buttons[0].classList.add('active');
     }
-    
     filterAndSearchProducts();
 }
 
 function formatPriceRange(prices) {
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
-    const formatOpts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
-    const formattedMin = new Intl.NumberFormat('en-IN', formatOpts).format(minPrice);
-    const formattedMax = new Intl.NumberFormat('en-IN', formatOpts).format(maxPrice);
+    const opts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
+    const formattedMin = new Intl.NumberFormat('en-IN', opts).format(minPrice);
+    const formattedMax = new Intl.NumberFormat('en-IN', opts).format(maxPrice);
     return minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
 }
 
-// Full product details display
+// Show Full Details
 function showProductDetails(product) {
     currentProduct = product;
     isDetailZoomed = false;
-    updateDetailZoom();
     
     if (elements.detailImage) {
         delete elements.detailImage.dataset.fallbackAttempted;
-
         const detailFileId = getGoogleDriveId(product);
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.title = 'Click to zoom';
 
         if (detailFileId) {
             elements.detailImage.onerror = () => {
                 if (!elements.detailImage.dataset.fallbackAttempted) {
                     elements.detailImage.dataset.fallbackAttempted = "true";
-                    if (detailPrimaryUrl.includes('drive.google.com/thumbnail')) {
-                        elements.detailImage.src = `https://lh3.googleusercontent.com/d/${detailFileId}=w2000`;
-                    } else {
-                        elements.detailImage.src = `https://drive.google.com/thumbnail?id=${detailFileId}&sz=w2000`;
-                    }
-                } else if (elements.detailImage.dataset.fallbackAttempted === "true") {
-                    elements.detailImage.dataset.fallbackAttempted = "failed_all";
+                    elements.detailImage.src = `https://lh3.googleusercontent.com/d/${detailFileId}=w2000`;
+                } else {
                     elements.detailImage.src = DEFAULT_IMAGE;
                 }
             };
         }
     }
     
-    if (elements.detailCode) elements.detailCode.textContent = `Code: ${product.code}`;
     if (elements.detailTitle) elements.detailTitle.textContent = product.title;
-    
-    if (elements.detailStock) {
-        if (product.qty > 0) {
-            elements.detailStock.textContent = 'In Stock';
-            elements.detailStock.style.backgroundColor = 'rgba(42, 107, 68, 0.09)';
-            elements.detailStock.style.color = '#2A6B44';
-            elements.detailStock.style.borderColor = 'rgba(42, 107, 68, 0.18)';
-        } else {
-            elements.detailStock.textContent = 'Out of Stock';
-            elements.detailStock.style.backgroundColor = 'rgba(139, 46, 36, 0.1)';
-            elements.detailStock.style.color = '#8B2E24';
-            elements.detailStock.style.borderColor = 'rgba(139, 46, 36, 0.2)';
-        }
-    }
     
     if (elements.detailDescription) {
         if (product.description) {
@@ -836,29 +848,27 @@ function showProductDetails(product) {
         }
     }
     
-    if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
-    if (elements.detailFabricHighlight) elements.detailFabricHighlight.textContent = product.fabric;
+    const mrp = product.price;
+    const finalPrice = getDiscountedPrice(mrp);
+    if (elements.detailMrp) elements.detailMrp.textContent = new Intl.NumberFormat('en-IN').format(mrp);
+    if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(finalPrice);
     
     updateWishlistButtonState();
-    renderSimilarProducts(product);
-    showView('details');
     
+    // Add to recently viewed & trigger recommendation grids
+    addToRecentlyViewed(product);
+    renderSameFabricProducts(product);
+    renderSimilarProducts(product);
+    renderQuickCategoryPills(product);
+    renderRecentlyViewedProducts(product);
+
+    showView('details');
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
 }
 
-function updateDetailZoom() {
-    if (!elements.detailImageSection || !elements.detailImage) return;
-    if (isDetailZoomed) {
-        elements.detailImageSection.classList.add('zoom-active');
-    } else {
-        elements.detailImageSection.classList.remove('zoom-active');
-    }
-}
-
-// Lightbox controls
+// Lightbox Overlay Handlers
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
-
     delete elements.overlayImage.dataset.fallbackAttempted;
 
     const overlayFileId = getGoogleDriveId(product);
@@ -866,8 +876,6 @@ function openFullScreenImage(product) {
 
     elements.overlayImage.src = overlayPrimaryUrl;
     elements.overlayImage.style.transform = 'scale(1)';
-    elements.overlayImage.style.transformOrigin = '50% 50%';
-    elements.overlayImage.style.cursor = 'zoom-in';
     elements.overlay.classList.remove('hidden');
     isOverlayZoomed = false;
     document.body.style.overflow = 'hidden';
@@ -876,13 +884,8 @@ function openFullScreenImage(product) {
         elements.overlayImage.onerror = () => {
             if (!elements.overlayImage.dataset.fallbackAttempted) {
                 elements.overlayImage.dataset.fallbackAttempted = "true";
-                if (overlayPrimaryUrl.includes('drive.google.com/thumbnail')) {
-                    elements.overlayImage.src = `https://lh3.googleusercontent.com/d/${overlayFileId}=w2000`;
-                } else {
-                    elements.overlayImage.src = `https://drive.google.com/thumbnail?id=${overlayFileId}&sz=w2000`;
-                }
-            } else if (elements.overlayImage.dataset.fallbackAttempted === "true") {
-                elements.overlayImage.dataset.fallbackAttempted = "failed_all";
+                elements.overlayImage.src = `https://lh3.googleusercontent.com/d/${overlayFileId}=w2000`;
+            } else {
                 elements.overlayImage.src = DEFAULT_IMAGE;
             }
         };
@@ -892,27 +895,15 @@ function openFullScreenImage(product) {
 function closeOverlay() {
     if (!elements.overlay) return;
     elements.overlay.classList.add('hidden');
-    if (elements.overlayImage) {
-        elements.overlayImage.style.transform = 'scale(1)';
-        elements.overlayImage.style.transformOrigin = '50% 50%';
-        elements.overlayImage.style.cursor = 'zoom-in';
-    }
     isOverlayZoomed = false;
     document.body.style.overflow = '';
 }
 
-// Toggle zoom on lightbox images
 function toggleOverlayZoom() {
     if (!elements.overlayImage) return;
     isOverlayZoomed = !isOverlayZoomed;
-    if (isOverlayZoomed) {
-        elements.overlayImage.style.transform = 'scale(2.5)';
-        elements.overlayImage.style.cursor = 'zoom-out';
-    } else {
-        elements.overlayImage.style.transform = 'scale(1)';
-        elements.overlayImage.style.transformOrigin = '50% 50%';
-        elements.overlayImage.style.cursor = 'zoom-in';
-    }
+    elements.overlayImage.style.transform = isOverlayZoomed ? 'scale(2.5)' : 'scale(1)';
+    elements.overlayImage.style.cursor = isOverlayZoomed ? 'zoom-out' : 'zoom-in';
 }
 
 function moveOverlayZoom(event) {
@@ -921,38 +912,6 @@ function moveOverlayZoom(event) {
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
     elements.overlayImage.style.transformOrigin = `${x}% ${y}%`;
-}
-
-function calculatePriceRanges() {
-    const categories = {
-        'kanchipuram': 'pure kanchipuram silk',
-        'ikkat': 'pure ikkat  silk', 
-        'gadwal': 'pure gadwal silk',
-        'tussar': 'pure tussar silk'
-    };
-    
-    for (const [id, fabricName] of Object.entries(categories)) {
-        const categoryProducts = allProducts.filter(p => p.fabric && p.fabric.toLowerCase() === fabricName.toLowerCase());
-        const priceElement = document.getElementById(`price-${id}`);
-        if (!priceElement) continue;
-        
-        if (categoryProducts.length > 0) {
-            const prices = categoryProducts.map(p => p.price).filter(p => p > 0);
-            if (prices.length > 0) {
-                const minPrice = Math.min(...prices);
-                const maxPrice = Math.max(...prices);
-                const formatOpts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
-                const formattedMin = new Intl.NumberFormat('en-IN', formatOpts).format(minPrice);
-                const formattedMax = new Intl.NumberFormat('en-IN', formatOpts).format(maxPrice);
-                
-                priceElement.textContent = minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
-            } else {
-                priceElement.textContent = 'Price Unavailable';
-            }
-        } else {
-            priceElement.textContent = 'Out of Stock';
-        }
-    }
 }
 
 // Wishlist Logic
@@ -969,17 +928,11 @@ function toggleWishlist(product = currentProduct) {
         action = 'Removed';
     }
     
-    try {
-        localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
-    } catch (e) {
-        console.error("Error saving wishlist to local storage", e);
-    }
-    
+    localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
     updateWishlistCount();
     updateWishlistButtonState();
-
-    // Dynamically update UI views to ensure state changes are visible instantly
     filterAndSearchProducts();
+
     if (views.wishlist && views.wishlist.classList.contains('active')) {
         renderWishlist();
     }
@@ -987,10 +940,8 @@ function toggleWishlist(product = currentProduct) {
     logWishlistActivity(action, product);
 }
 
-// Render Wishlist Page
 function renderWishlist() {
     if (!elements.wishlistGrid) return;
-    
     if (wishlist.length === 0) {
         elements.wishlistGrid.style.display = 'none';
         if (elements.emptyWishlistMsg) elements.emptyWishlistMsg.style.display = 'block';
@@ -1001,7 +952,6 @@ function renderWishlist() {
     }
 }
 
-// Filters implementation
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
     const activeFilterBtn = document.querySelector('.filter-btn.active');
@@ -1012,15 +962,13 @@ function filterAndSearchProducts() {
             (product.code && product.code.toLowerCase().includes(searchTerm)) ||
             (product.fabric && product.fabric.toLowerCase().includes(searchTerm)) ||
             (product.category && product.category.toLowerCase().includes(searchTerm)) ||
-            (product.description && product.description.toLowerCase().includes(searchTerm)) ||
-            (product.price && product.price.toString().includes(searchTerm))
+            (product.description && product.description.toLowerCase().includes(searchTerm))
         );
             
         let matchesFilter = true;
         if (filterTerm !== 'all') {
             const prodFabric = (product.fabric || '').toLowerCase().replace(/\s+/g, ' ').trim();
-            const fTerm = filterTerm.replace(/\s+/g, ' ').trim();
-            matchesFilter = prodFabric.includes(fTerm);
+            matchesFilter = prodFabric.includes(filterTerm.replace(/\s+/g, ' ').trim());
         }
         
         return matchesSearch && matchesFilter;
@@ -1033,10 +981,9 @@ function updateWishlistCount() {
     if (elements.wishlistCount) elements.wishlistCount.textContent = wishlist.length;
 }
 
-// Dynamic Share Feature Logic
+// Sharing & WhatsApp Video Call Booking Handlers
 async function shareProduct(product = currentProduct) {
     if (!product) return;
-    
     const shareUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
     const shareData = {
         title: product.title,
@@ -1048,74 +995,79 @@ async function shareProduct(product = currentProduct) {
         if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
             await navigator.share(shareData);
         } else {
-            // Asynchronous clipboard copy fallback
             await navigator.clipboard.writeText(shareUrl);
-            alert("Masterpiece link copied to clipboard!");
+            showToast("Masterpiece link copied to clipboard!");
         }
     } catch (error) {
-        console.error("Error executing share operation:", error);
+        console.error("Error sharing:", error);
     }
 }
 
-// Dynamic WhatsApp Booking Inquiry Formatter
-function sendWhatsappInquiry() {
-    if (!currentProduct) return;
+function handleBookNowForProduct(product) {
+    const prod = product || currentProduct;
+    if (!prod) return;
     
-    const message = `Namaste, I would like to book this hand-painted masterpiece:\n\n• Code: ${currentProduct.code}\n• Title: ${currentProduct.title}\n• Fabric: ${currentProduct.fabric}\n• Link: ${window.location.href}`;
+    const mrp = prod.price;
+    const finalPrice = getDiscountedPrice(mrp);
+    
+    const productUrl = `${window.location.origin}${window.location.pathname}#product/${prod.code}`;
+    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
+    
+    const message = `Namaste Kailash Kalamkari Workshop,\n\nI would like to book a video call to view this hand-painted masterpiece:\n\n` +
+                    `*Product:* ${prod.title}\n` +
+                    `*Code:* ${prod.code}\n` +
+                    `*Price:* Rs. ${new Intl.NumberFormat('en-IN').format(finalPrice)} (${DISCOUNT_PERCENTAGE}% OFF, MRP: Rs. ${new Intl.NumberFormat('en-IN').format(mrp)})\n` +
+                    `*Fabric:* ${prod.fabric}\n` +
+                    `*Link:* ${productUrl}\n\n` +
+                    `*Ref:* ${visitorId}\n\n` +
+                    `Please let me know your availability for a video call. Thank you!`;
+
     const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/919063374020?text=${encodedMessage}`, '_blank');
+    const whatsappUrl = `https://wa.me/${CONTACT_PHONE_NUMBER.replace(/[^0-9]/g, '')}?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
 }
 
-// Event Bindings
+// Event Listeners Registration
 function setupEventListeners() {
-    if (elements.backToCatalogueBtn) {
-        elements.backToCatalogueBtn.addEventListener('click', goBack);
-    }
-    if (elements.backFromWishlistBtn) {
-        elements.backFromWishlistBtn.addEventListener('click', goBack);
-    }
+    if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', goBack);
+    if (elements.backFromWishlistBtn) elements.backFromWishlistBtn.addEventListener('click', goBack);
     
     if (elements.viewWishlistBtn) {
         elements.viewWishlistBtn.addEventListener('click', () => {
-            sessionPushedStates++;
             window.location.hash = '#wishlist';
         });
     }
     
-    if (elements.addToWishlistBtn) {
-        elements.addToWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
+    if (elements.addToWishlistBtn) elements.addToWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
+    if (elements.shareBtn) elements.shareBtn.addEventListener('click', () => shareProduct(currentProduct));
+    if (elements.bookNowBtn) elements.bookNowBtn.addEventListener('click', () => handleBookNowForProduct(currentProduct));
+
+    // Detail Interactive Pill Buttons
+    if (elements.detailWishlistPill) {
+        elements.detailWishlistPill.addEventListener('click', () => toggleWishlist(currentProduct));
     }
-    if (elements.shareBtn) {
-        elements.shareBtn.addEventListener('click', () => shareProduct(currentProduct));
+    if (elements.detailSharePill) {
+        elements.detailSharePill.addEventListener('click', () => shareProduct(currentProduct));
     }
-    if (elements.buyNowBtn) {
-        elements.buyNowBtn.addEventListener('click', sendWhatsappInquiry);
-    }
-    
-    // Floating detail page quick actions setup
+
+    // Floating actions
     const floatingWishlistBtn = document.getElementById('detail-floating-wishlist-btn');
-    if (floatingWishlistBtn) {
-        floatingWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
-    }
+    if (floatingWishlistBtn) floatingWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
     
     const floatingShareBtn = document.getElementById('detail-floating-share-btn');
-    if (floatingShareBtn) {
-        floatingShareBtn.addEventListener('click', () => shareProduct(currentProduct));
-    }
+    if (floatingShareBtn) floatingShareBtn.addEventListener('click', () => shareProduct(currentProduct));
 
     if (elements.searchInput) elements.searchInput.addEventListener('input', filterAndSearchProducts);
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
-            const selectedDept = normalizeDepartment(element.dataset.department);
-            setDepartment(selectedDept, { pushState: true }); 
+            setDepartment(element.dataset.department, { pushState: true }); 
             showView('catalogue');
         });
     });
     
-    if (elements.detailImage) {
-        elements.detailImage.addEventListener('click', () => openFullScreenImage(currentProduct));
-    }
+    if (elements.detailImage) elements.detailImage.addEventListener('click', () => openFullScreenImage(currentProduct));
     
     if (elements.overlay) {
         elements.overlay.addEventListener('click', event => {
@@ -1146,17 +1098,9 @@ function handlePopState() {
 
     if (hash.startsWith('#product/')) {
         const productCode = hash.split('/')[1];
-        if (allProducts.length === 0) {
-            fetchProducts().then(() => {
-                const product = allProducts.find(p => p.code === productCode);
-                if (product) showProductDetails(product);
-                else showView('catalogue'); 
-            });
-        } else {
-            const product = allProducts.find(p => p.code === productCode);
-            if (product) showProductDetails(product);
-            else showView('catalogue');
-        }
+        const product = allProducts.find(p => p.code === productCode);
+        if (product) showProductDetails(product);
+        else showView('catalogue');
     } else if (hash === '#wishlist') {
         renderWishlist();
         showView('wishlist');
@@ -1168,29 +1112,37 @@ function handlePopState() {
 }
 
 function updateWishlistButtonState() {
-    if (!currentProduct || !elements.addToWishlistBtn) return;
+    if (!currentProduct) return;
     const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
     
-    if (isInWishlist) {
-        elements.addToWishlistBtn.classList.add('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'In Gallery';
-        if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '♥';
-    } else {
-        elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Gallery';
-        if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '❤️';
+    if (elements.addToWishlistBtn) {
+        if (isInWishlist) {
+            elements.addToWishlistBtn.classList.add('active');
+            if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'In Gallery';
+            if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '♥';
+        } else {
+            elements.addToWishlistBtn.classList.remove('active');
+            if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Gallery';
+            if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '❤️';
+        }
     }
 
-    // Update the floating detail page button overlaying the main product detail image
+    if (elements.detailWishlistPill) {
+        if (isInWishlist) {
+            elements.detailWishlistPill.classList.add('active');
+            if (elements.detailWishlistPillText) elements.detailWishlistPillText.textContent = 'Wishlisted';
+            if (elements.detailWishlistPillIcon) elements.detailWishlistPillIcon.textContent = '♥';
+        } else {
+            elements.detailWishlistPill.classList.remove('active');
+            if (elements.detailWishlistPillText) elements.detailWishlistPillText.textContent = 'Wishlist';
+            if (elements.detailWishlistPillIcon) elements.detailWishlistPillIcon.textContent = '♡';
+        }
+    }
+
     const floatingWishlistBtn = document.getElementById('detail-floating-wishlist-btn');
     if (floatingWishlistBtn) {
-        if (isInWishlist) {
-            floatingWishlistBtn.classList.add('active');
-            floatingWishlistBtn.innerHTML = '♥';
-        } else {
-            floatingWishlistBtn.classList.remove('active');
-            floatingWishlistBtn.innerHTML = '♡';
-        }
+        floatingWishlistBtn.classList.toggle('active', isInWishlist);
+        floatingWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
     }
 }
 
