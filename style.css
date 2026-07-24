@@ -34,7 +34,7 @@ body {
     background-color: var(--color-milk-ivory);
     color: var(--color-roasted-espresso);
     line-height: 1.7;
-    overflow-x: hidden;
+    overflow-x: clip; /* Fixes position: sticky freezing across all mobile & desktop browsers */
     letter-spacing: 0.01em;
     position: relative;
 }
@@ -107,7 +107,7 @@ body {
     fill: white;
 }
 
-/* HIGH-FIDELITY RAW SILK CANVAS BACKDROP OVERLAY */
+/* RAW SILK CANVAS BACKDROP OVERLAY */
 .silk-canvas-texture {
     position: fixed;
     inset: 0;
@@ -121,7 +121,7 @@ body {
     background-color: var(--color-parchment);
 }
 
-/* THE BREATHING SANCTUM CANDLE HALO */
+/* SANCTUM CANDLE HALO */
 .sanctum-diya-halo {
     position: fixed;
     top: -15%;
@@ -567,17 +567,17 @@ body {
     width: 100%;
 }
 
-/* FROZEN / STICKY TOP NAVIGATION CONTAINER */
+/* ================= FROZEN / STICKY TOP NAVIGATION CONTAINER ================= */
 .sticky-nav-container {
     position: sticky;
     top: 0;
-    z-index: 90;
-    background: rgba(255, 253, 249, 0.96);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--color-gold-muted);
-    box-shadow: 0 4px 20px rgba(86, 11, 2, 0.05);
-    padding: 0.8rem 0 0.4rem;
+    z-index: 9999; /* Higher z-index to stay frozen above all page elements */
+    background: rgba(255, 253, 249, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--color-royal-gold);
+    box-shadow: 0 6px 25px rgba(86, 11, 2, 0.08);
+    padding: 0.8rem 0 0.5rem;
 }
 
 /* Search Bar Container */
@@ -691,7 +691,7 @@ body {
 }
 
 .category-filters::-webkit-scrollbar {
-    height: 3px;
+    height: 4px;
 }
 
 .category-filters::-webkit-scrollbar-track {
@@ -745,9 +745,8 @@ body {
     font-weight: 700;
 }
 
-/* Overrides for Details Panel Focus Mode */
-body.details-mode .main-header,
-body.details-mode .sticky-nav-container {
+/* Hide Main Marquee Header in Details Mode, but KEEP Sticky Navigation Frozen */
+body.details-mode .main-header {
     display: none !important;
 }
 
@@ -1627,6 +1626,182 @@ body.details-mode .sticky-nav-container {
     background: var(--color-temple-crimson);
     color: var(--color-milk-ivory);
     border-color: var(--color-temple-crimson);
+}
+
+/* Modals & Payment Panel Overlays */
+.checkout-modal-overlay,
+.payment-panel-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(44, 26, 22, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.checkout-modal-card,
+.payment-panel-card {
+    background: var(--color-milk-ivory);
+    border: 1px solid var(--color-royal-gold);
+    padding: 2.5rem 2rem;
+    max-width: 480px;
+    width: 100%;
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalPop {
+    from { opacity: 0; transform: scale(0.92) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.checkout-modal-close,
+.payment-panel-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.2rem;
+    background: transparent;
+    border: none;
+    font-size: 1.8rem;
+    color: var(--color-temple-crimson);
+    cursor: pointer;
+}
+
+.checkout-modal-title {
+    font-family: var(--font-heritage);
+    color: var(--color-temple-crimson);
+    font-size: 1.3rem;
+    text-align: center;
+    margin-bottom: 0.3rem;
+}
+
+.checkout-modal-subtitle {
+    font-size: 0.82rem;
+    color: var(--color-antique-gold);
+    text-align: center;
+    margin-bottom: 1.8rem;
+}
+
+.checkout-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 1.1rem;
+}
+
+.checkout-form-label {
+    font-family: var(--font-heritage);
+    font-size: 0.75rem;
+    color: var(--color-temple-crimson);
+    font-weight: 600;
+}
+
+.checkout-form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-gold-muted);
+    background: var(--color-parchment);
+    font-family: var(--font-clean);
+    font-size: 0.88rem;
+    color: var(--color-roasted-espresso);
+    outline: none;
+}
+
+.checkout-form-input:focus {
+    border-color: var(--color-temple-crimson);
+}
+
+.checkout-submit-btn {
+    width: 100%;
+    padding: 0.9rem;
+    background: var(--color-royal-gold);
+    color: var(--color-temple-crimson);
+    border: none;
+    font-family: var(--font-heritage);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: var(--transition-premium);
+}
+
+.checkout-submit-btn:hover {
+    background: var(--color-antique-gold);
+    color: var(--color-milk-ivory);
+}
+
+/* Payment Gateway Section inside Modal */
+.payment-gateway-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.payment-logo {
+    font-family: var(--font-heritage);
+    font-size: 1.2rem;
+    color: var(--color-temple-crimson);
+    font-weight: 700;
+}
+
+.payment-tagline {
+    font-size: 0.75rem;
+    color: var(--color-antique-gold);
+    letter-spacing: 0.1em;
+}
+
+.payment-amount-display {
+    font-family: var(--font-heritage);
+    font-size: 1.8rem;
+    color: var(--color-temple-crimson);
+    font-weight: 700;
+    margin-top: 0.6rem;
+}
+
+.payment-methods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.payment-method-btn {
+    width: 100%;
+    padding: 0.9rem 1.2rem;
+    border: 1px solid var(--color-gold-muted);
+    background: var(--color-milk-ivory);
+    font-family: var(--font-heritage);
+    font-size: 0.82rem;
+    color: var(--color-temple-crimson);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: var(--transition-premium);
+}
+
+.payment-method-btn:hover {
+    border-color: var(--color-temple-crimson);
+    background: var(--color-parchment);
+}
+
+.upi-qr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px dashed var(--color-gold-muted);
+    text-align: center;
+}
+
+.upi-qr-image {
+    width: 200px;
+    height: 200px;
+    border: 1px solid var(--color-royal-gold);
+    margin-bottom: 0.8rem;
 }
 
 /* Touch Screens Responsive Matrix & Mobile Optimization */

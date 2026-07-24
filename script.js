@@ -850,6 +850,7 @@ function attachFilterHandlers() {
             btn.classList.add('active');
             navigateToState(currentDepartment, btn.dataset.filter, '', true);
             filterAndSearchProducts();
+            showView('catalogue'); // Switch back to catalogue view when a fabric filter is clicked
             scrollToDepartment(true);
         });
     });
@@ -1213,7 +1214,14 @@ function setupEventListeners() {
         });
     }
 
-    if (elements.searchInput) elements.searchInput.addEventListener('input', filterAndSearchProducts);
+    if (elements.searchInput) {
+        elements.searchInput.addEventListener('input', () => {
+            if (views.details && views.details.classList.contains('active')) {
+                showView('catalogue');
+            }
+            filterAndSearchProducts();
+        });
+    }
 
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
