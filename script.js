@@ -60,11 +60,13 @@ function getGoogleDriveId(product) {
     return null;
 }
 
+// Return Direct Image URL for Google Image Indexer
 function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
     const fileId = getGoogleDriveId(product);
     if (fileId) {
-        return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
+        // Direct image link format accessible to Googlebot Image Indexer
+        return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
     }
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
     if (!rawUrl) return DEFAULT_IMAGE;
@@ -82,7 +84,7 @@ function setupImageFallback(imgElement, product, width = 800) {
     imgElement.onerror = () => {
         if (!imgElement.dataset.fallbackAttempted) {
             imgElement.dataset.fallbackAttempted = "1";
-            imgElement.src = `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
+            imgElement.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
         } else if (imgElement.dataset.fallbackAttempted === "1") {
             imgElement.dataset.fallbackAttempted = "2";
             imgElement.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
@@ -91,6 +93,67 @@ function setupImageFallback(imgElement, product, width = 800) {
             imgElement.src = DEFAULT_IMAGE;
         }
     };
+}
+
+// Google Image Search & Structured Data (JSON-LD) Dynamic Injector
+function updateGoogleImageSchemaAndMeta(product) {
+    if (!product) return;
+
+    const pageTitle = `${product.title} (Code: ${product.code}) — Kailash Kalamkari Srikalahasti`;
+    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}.`;
+    const imageUrl = getProductImageUrl(product, 1600);
+    const productUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
+
+    // Update document title and OpenGraph tags dynamically
+    document.title = pageTitle;
+
+    const ogTitle = document.getElementById('og-title');
+    if (ogTitle) ogTitle.setAttribute('content', pageTitle);
+
+    const ogDesc = document.getElementById('og-desc');
+    if (ogDesc) ogDesc.setAttribute('content', pageDesc);
+
+    const ogImage = document.getElementById('og-image');
+    if (ogImage) ogImage.setAttribute('content', imageUrl);
+
+    const ogUrl = document.getElementById('og-url');
+    if (ogUrl) ogUrl.setAttribute('content', productUrl);
+
+    // Inject Product Schema JSON-LD for Google Search & Google Images
+    const schemaScript = document.getElementById('dynamic-product-schema');
+    if (schemaScript) {
+        const schemaData = {
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": product.title,
+            "image": [
+                imageUrl,
+                getProductImageUrl(product, 800)
+            ],
+            "description": product.description || pageDesc,
+            "sku": product.code,
+            "mpn": product.code,
+            "brand": {
+                "@type": "Brand",
+                "name": "Kailash Kalamkari"
+            },
+            "category": product.category || product.department || "Kalamkari Hand Painted Sarees",
+            "offers": {
+                "@type": "Offer",
+                "url": productUrl,
+                "priceCurrency": "INR",
+                "price": product.price,
+                "priceValidUntil": "2028-12-31",
+                "itemCondition": "https://schema.org/NewCondition",
+                "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                "seller": {
+                    "@type": "Organization",
+                    "name": "Kailash Kalamkari"
+                }
+            }
+        };
+        schemaScript.textContent = JSON.stringify(schemaData);
+    }
 }
 
 function sortProductsByPrice(products) {
@@ -506,7 +569,7 @@ async function fetchProducts() {
     }
 }
 
-// Render Products Grid
+// Render Products Grid with SEO Keyword-rich Image Alt attributes
 function renderProducts(products, container, isHorizontal = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -542,7 +605,9 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        img.alt = product.title || product.fabric; 
+        // Rich keyword-focused ALT attribute for Google Image Crawler
+        img.alt = `${product.title} - Srikalahasti Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`; 
+        img.title = `${product.title} - Hand Painted Kalamkari Saree`;
         img.loading = 'lazy';
         
         const primaryUrl = getProductImageUrl(product, 800);
@@ -795,8 +860,12 @@ function showView(viewName) {
         document.body.classList.add('details-mode');
     } else {
         document.body.classList.remove('details-mode');
-        if (viewName === 'catalogue') scrollToDepartment(true);
-        else window.scrollTo(0, 0);
+        if (viewName === 'catalogue') {
+            scrollToDepartment(true);
+            document.title = "Kailash Kalamkari — Sacred Hand-Painted Heritage Silks & Sarees";
+        } else {
+            window.scrollTo(0, 0);
+        }
     }
 }
 
@@ -885,7 +954,7 @@ function formatPriceRange(prices) {
     return minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
 }
 
-// Show Full Product Details Page
+// Show Full Product Details Page + Inject Schema for Google Images
 function showProductDetails(product) {
     currentProduct = product;
     isDetailZoomed = false;
@@ -896,6 +965,8 @@ function showProductDetails(product) {
         delete elements.detailImage.dataset.fallbackAttempted;
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
+        elements.detailImage.alt = `${product.title} - Srikalahasti Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`;
+        elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
     
@@ -934,6 +1005,9 @@ function showProductDetails(product) {
         }
     }
     
+    // Inject Schema.org and OpenGraph image data for Google Images
+    updateGoogleImageSchemaAndMeta(product);
+
     updateWishlistButtonState();
     renderFabricProducts(product);
     renderSimilarProducts(product);
@@ -951,6 +1025,7 @@ function openFullScreenImage(product) {
 
     const overlayPrimaryUrl = getProductImageUrl(product, 2000);
     elements.overlayImage.src = overlayPrimaryUrl;
+    elements.overlayImage.alt = `${product.title} High Resolution Detail`;
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';

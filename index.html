@@ -3,7 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kailash Kalamkari — Sacred Hand-Painted Heritage</title>
+    <title>Kailash Kalamkari — Sacred Hand-Painted Heritage Silks & Sarees</title>
+    
+    <!-- Google Image Search & Indexing Directives -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="description" content="Discover authentic hand-painted Kalamkari sarees and dupattas crafted in Srikalahasti using natural organic dyes. Direct from master artisans since 1984.">
+    <meta name="keywords" content="Kalamkari Sarees, Srikalahasti Kalamkari, Hand-Painted Silk Sarees, Pure Silk Kalamkari, Handloom Dupattas, Kailash Kalamkari">
+    
+    <!-- Open Graph Meta Tags for Google & Social Image Indexing -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Kailash Kalamkari">
+    <meta property="og:title" id="og-title" content="Kailash Kalamkari — Sacred Hand-Painted Heritage">
+    <meta property="og:description" id="og-desc" content="Sacred hand-painted Kalamkari silks and sarees direct from Srikalahasti master artisans.">
+    <meta property="og:image" id="og-image" content="logo.jpeg">
+    <meta property="og:url" id="og-url" content="https://kailashkalamkari.com">
+
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +26,30 @@
     
     <!-- Cashfree Web Checkout SDK v3 Integration -->
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+
+    <!-- Base Google Schema.org Organization & Store JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ClothingStore",
+      "name": "Kailash Kalamkari",
+      "url": "https://kailashkalamkari.com",
+      "logo": "logo.jpeg",
+      "image": "logo.jpeg",
+      "description": "Authentic Hand-Painted Srikalahasti Kalamkari Silks & Sarees",
+      "telephone": "+919063374020",
+      "priceRange": "₹₹₹",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Srikalahasti",
+        "addressRegion": "Andhra Pradesh",
+        "countryName": "India"
+      }
+    }
+    </script>
+
+    <!-- Dynamic Container for Individual Product Google Image JSON-LD -->
+    <script type="application/ld+json" id="dynamic-product-schema"></script>
 </head>
 <body>
 
@@ -120,7 +158,7 @@
                         
                         <div class="brand-content">
                             <div class="brand-logo-container">
-                                <img src="logo.jpeg" alt="Kailash Kalamkari Logo" class="brand-logo-img" onerror="if(!this.dataset.fallback){this.dataset.fallback=1;this.src='logo.jpg';}else if(this.dataset.fallback==1){this.dataset.fallback=2;this.src='logo.png';}else{this.style.display='none';}">
+                                <img src="logo.jpeg" alt="Kailash Kalamkari Logo - Authentic Srikalahasti Hand Painted Sarees" class="brand-logo-img" onerror="if(!this.dataset.fallback){this.dataset.fallback=1;this.src='logo.jpg';}else if(this.dataset.fallback==1){this.dataset.fallback=2;this.src='logo.png';}else{this.style.display='none';}">
                             </div>
                             <h1>KAILASH KALAMKARI</h1>
                             <p class="brand-tagline">Sacred Hand-Painted Silks of Srikalahasti</p>
@@ -182,7 +220,7 @@
             <div class="product-details-container">
                 <div class="product-image-section">
                     <div class="detail-image-wrapper">
-                        <img id="detail-image" src="" alt="Kalamkari Masterpiece">
+                        <img id="detail-image" src="" alt="Kalamkari Hand-Painted Saree Masterpiece">
                         <div class="luxury-frame-overlay"></div>
                         <div class="detail-quick-actions">
                             <button id="detail-floating-wishlist-btn" class="card-action-btn detail-wishlist-btn" aria-label="Toggle Gallery Vault">♡</button>
