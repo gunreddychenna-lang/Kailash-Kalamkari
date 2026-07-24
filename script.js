@@ -1,10 +1,17 @@
-// === KAILASH KALAMKARI - CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
+// =========================================================================
+// 🏷️ GLOBAL STOREWIDE DISCOUNT PERCENTAGE CONFIGURATION
+// Change this value to apply a site-wide discount percentage across all items:
+// Examples: 20 = 20% OFF | 15 = 15% OFF | 10 = 10% OFF | 0 = No Discount
+const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
+// =========================================================================
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbxrk6213QmHO9K2JNrWDLpUlvzzeMDejqkphVKbMvN3Uu24w04LoHn1nH9kmKAvv5pA/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
+
+const SHARE_ICON_SVG = `<svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>`;
 
 // Department State Management
 const DEPARTMENTS = [
@@ -22,7 +29,6 @@ let isDetailZoomed = false;
 let isOverlayZoomed = false;
 let isInitialLoad = true; 
 let sessionPushedStates = 0;
-let customerInfo = { name: '', phone: '', email: '', address: '' };
 
 // Initialize Cashfree Web SDK v3
 let cashfree;
@@ -65,7 +71,6 @@ function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
     const fileId = getGoogleDriveId(product);
     if (fileId) {
-        // Direct image link format accessible to Googlebot Image Indexer
         return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
     }
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
@@ -104,7 +109,6 @@ function updateGoogleImageSchemaAndMeta(product) {
     const imageUrl = getProductImageUrl(product, 1600);
     const productUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
 
-    // Update document title and OpenGraph tags dynamically
     document.title = pageTitle;
 
     const ogTitle = document.getElementById('og-title');
@@ -119,7 +123,6 @@ function updateGoogleImageSchemaAndMeta(product) {
     const ogUrl = document.getElementById('og-url');
     if (ogUrl) ogUrl.setAttribute('content', productUrl);
 
-    // Inject Product Schema JSON-LD for Google Search & Google Images
     const schemaScript = document.getElementById('dynamic-product-schema');
     if (schemaScript) {
         const schemaData = {
@@ -267,7 +270,7 @@ async function logVisitorTraffic() {
             locationData.city = geoJson.city || 'Unknown';
             locationData.region = geoJson.region || 'Unknown';
             locationData.country = geoJson.country || 'Unknown';
-            locationData.ip = 'Anonymized'; // IP anonymized for privacy
+            locationData.ip = 'Anonymized';
         }
     } catch (geoError) {
         try {
@@ -277,7 +280,7 @@ async function logVisitorTraffic() {
                 locationData.city = fallbackJson.city || 'Unknown';
                 locationData.region = fallbackJson.region || 'Unknown';
                 locationData.country = fallbackJson.country_name || 'Unknown';
-                locationData.ip = 'Anonymized'; // IP anonymized for privacy
+                locationData.ip = 'Anonymized';
             }
         } catch (fallbackError) {}
     }
@@ -368,8 +371,6 @@ const elements = {
     overlay: document.getElementById('image-overlay'),
     overlayImage: document.getElementById('overlay-image'),
     overlayClose: document.getElementById('overlay-close'),
-    detailCode: document.getElementById('detail-code'),
-    detailStock: document.getElementById('detail-stock'), 
     detailTitle: document.getElementById('detail-title'),
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
@@ -381,22 +382,7 @@ const elements = {
     wishlistBtnText: document.getElementById('wishlist-btn-text'),
     wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
     shareBtn: document.getElementById('share-btn'),
-    buyNowBtn: document.getElementById('buy-now-btn'),
-    videoCallBtn: document.getElementById('video-call-btn'),
-    
-    // Checkout & Payment Modals
-    checkoutModal: document.getElementById('checkout-modal'),
-    checkoutModalClose: document.getElementById('checkout-modal-close'),
-    checkoutForm: document.getElementById('checkout-form'),
-    modalWhatsappBtn: document.getElementById('modal-whatsapp-btn'),
-    paymentPanel: document.getElementById('payment-panel'),
-    paymentPanelClose: document.getElementById('payment-panel-close'),
-    paymentAmount: document.getElementById('payment-amount'),
-    payCashfreeBtn: document.getElementById('pay-cashfree-btn'),
-    payUpiQrBtn: document.getElementById('pay-upi-qr-btn'),
-    payWhatsappDirectBtn: document.getElementById('pay-whatsapp-direct-btn'),
-    upiQrContainer: document.getElementById('upi-qr-container'),
-    upiQrImg: document.getElementById('upi-qr-img')
+    videoCallBtn: document.getElementById('video-call-btn')
 };
 
 // Smooth Scroll Helper
@@ -513,10 +499,21 @@ async function fetchProducts() {
             let qty = rawQty !== '' ? Number(rawQty) : 1;
             if (isNaN(qty)) qty = 1;
 
-            const sellingPrice = parsePrice(item.price || item.Price || '');
-            let rawMrp = parsePrice(item.mrp || item.MRP || '');
-            if (!rawMrp || rawMrp <= sellingPrice) {
-                rawMrp = Math.round((sellingPrice * 1.25) / 100) * 100;
+            // Fetch price & MRP directly from Google Sheet columns
+            let sellingPrice = parsePrice(getFieldValue(item, ['price', 'selling price', 'rate', 'amount']));
+            let mrpFromSheet = parsePrice(getFieldValue(item, ['mrp', 'm.r.p', 'original price', 'mrp price', 'list price']));
+
+            let rawMrp = mrpFromSheet;
+            if (!rawMrp) {
+                rawMrp = sellingPrice;
+            }
+
+            // Apply Global Percentage Discount if GLOBAL_DISCOUNT_PERCENTAGE is configured
+            if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
+                if (rawMrp <= sellingPrice) {
+                    rawMrp = sellingPrice;
+                }
+                sellingPrice = Math.round(rawMrp * (1 - GLOBAL_DISCOUNT_PERCENTAGE / 100));
             }
 
             const description = String(getFieldValue(item, ['description', 'product description', 'desc'])).trim();
@@ -599,7 +596,7 @@ function renderProducts(products, container, isHorizontal = false) {
 
         const formattedPrice = new Intl.NumberFormat('en-IN').format(product.price);
         const formattedMrp = new Intl.NumberFormat('en-IN').format(product.mrp);
-        const discountPct = Math.round(((product.mrp - product.price) / product.mrp) * 100);
+        const discountPct = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0;
 
         const imageWrapper = document.createElement('div');
         imageWrapper.className = 'product-image-wrapper';
@@ -638,25 +635,15 @@ function renderProducts(products, container, isHorizontal = false) {
 
         const cardShareBtn = document.createElement('button');
         cardShareBtn.className = 'card-action-btn card-share-btn';
-        cardShareBtn.innerHTML = '🔗';
+        cardShareBtn.innerHTML = SHARE_ICON_SVG;
         cardShareBtn.title = 'Share Artwork';
         cardShareBtn.onclick = (e) => {
             e.stopPropagation();
             shareProduct(product);
         };
 
-        const cardVideoBtn = document.createElement('button');
-        cardVideoBtn.className = 'card-action-btn card-video-btn';
-        cardVideoBtn.innerHTML = '📹';
-        cardVideoBtn.title = 'Book Live Video Call';
-        cardVideoBtn.onclick = (e) => {
-            e.stopPropagation();
-            bookVideoCall(product);
-        };
-
         quickActions.appendChild(cardWishlistBtn);
         quickActions.appendChild(cardShareBtn);
-        quickActions.appendChild(cardVideoBtn);
         imageWrapper.appendChild(quickActions);
 
         const info = document.createElement('div');
@@ -667,22 +654,11 @@ function renderProducts(products, container, isHorizontal = false) {
             <h3 class="product-title">${product.title}</h3>
             ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
             <div class="product-price-row">
-                <span class="mrp-price">Rs. ${formattedMrp}</span>
+                ${product.mrp > product.price ? `<span class="mrp-price">Rs. ${formattedMrp}</span>` : ''}
                 <span class="product-price">Rs. ${formattedPrice}</span>
                 ${discountPct > 0 ? `<span class="discount-badge">${discountPct}% OFF</span>` : ''}
             </div>
-            <button class="card-book-now-btn">
-                <span>📹 Book Video Call</span>
-            </button>
         `;
-
-        const cardBookBtn = info.querySelector('.card-book-now-btn');
-        if (cardBookBtn) {
-            cardBookBtn.onclick = (e) => {
-                e.stopPropagation();
-                bookVideoCall(product);
-            };
-        }
 
         card.appendChild(imageWrapper);
         card.appendChild(info);
@@ -745,7 +721,7 @@ function renderFabricProducts(currentProduct) {
     }
 }
 
-// Grid 2: Similar Price Range Masterpieces (Strictly excludes same fabric for maximum discovery)
+// Grid 2: Similar Price Range Masterpieces
 function renderSimilarProducts(currentProduct) {
     const similarSection = document.getElementById('similar-products-section');
     const similarContainer = document.getElementById('similar-products-grid');
@@ -779,7 +755,7 @@ function renderSimilarProducts(currentProduct) {
     }
 }
 
-// Grid 3: Explore More Collections (Dynamic Picture Sliders grouped per Fabric)
+// Grid 3: Explore More Collections
 function renderQuickCategoryPills(currentProd = currentProduct) {
     const section = document.getElementById('category-browse-section');
     const container = document.getElementById('quick-category-pills');
@@ -969,18 +945,7 @@ function showProductDetails(product) {
         setupImageFallback(elements.detailImage, product, 2000);
     }
     
-    if (elements.detailCode) elements.detailCode.textContent = `Code: ${product.code}`;
     if (elements.detailTitle) elements.detailTitle.textContent = product.title;
-    
-    if (elements.detailStock) {
-        if (product.qty > 0) {
-            elements.detailStock.textContent = 'In Stock';
-            elements.detailStock.style.color = '#2A6B44';
-        } else {
-            elements.detailStock.textContent = 'Out of Stock';
-            elements.detailStock.style.color = '#8B2E24';
-        }
-    }
     
     if (elements.detailDescription) {
         if (product.description) {
@@ -992,10 +957,18 @@ function showProductDetails(product) {
     }
     
     if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
-    if (elements.detailMrp) elements.detailMrp.textContent = `INR ${new Intl.NumberFormat('en-IN').format(product.mrp)}`;
+    
+    if (elements.detailMrp) {
+        if (product.mrp && product.mrp > product.price) {
+            elements.detailMrp.textContent = `INR ${new Intl.NumberFormat('en-IN').format(product.mrp)}`;
+            elements.detailMrp.style.display = 'inline-flex';
+        } else {
+            elements.detailMrp.style.display = 'none';
+        }
+    }
     
     if (elements.detailDiscount) {
-        const discountPct = Math.round(((product.mrp - product.price) / product.mrp) * 100);
+        const discountPct = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0;
         if (discountPct > 0) {
             elements.detailDiscount.textContent = `${discountPct}% OFF`;
             elements.detailDiscount.style.display = 'inline-block';
@@ -1004,7 +977,6 @@ function showProductDetails(product) {
         }
     }
     
-    // Inject Schema.org and OpenGraph image data for Google Images
     updateGoogleImageSchemaAndMeta(product);
 
     updateWishlistButtonState();
@@ -1077,11 +1049,11 @@ function toggleWishlist(product = currentProduct) {
     if (index === -1) {
         wishlist.push(product);
         action = 'Added';
-        showToast(`"Code ${product.code}" added to Gallery Vault!`);
+        showToast(`Added to Gallery Vault!`);
     } else {
         wishlist.splice(index, 1);
         action = 'Removed';
-        showToast(`"Code ${product.code}" removed from Gallery Vault.`);
+        showToast(`Removed from Gallery Vault.`);
     }
     
     localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
@@ -1171,61 +1143,6 @@ async function shareProduct(product = currentProduct) {
     }
 }
 
-// Checkout & Multi-Channel Payment Modals
-function openCheckoutModal() {
-    if (!currentProduct || !elements.checkoutModal) return;
-    elements.checkoutModal.style.display = 'flex';
-    elements.checkoutModal.classList.add('active');
-}
-
-function closeCheckoutModal() {
-    if (!elements.checkoutModal) return;
-    elements.checkoutModal.style.display = 'none';
-    elements.checkoutModal.classList.remove('active');
-}
-
-function openPaymentPanel() {
-    if (!currentProduct || !elements.paymentPanel) return;
-    if (elements.paymentAmount) {
-        elements.paymentAmount.textContent = `INR ${new Intl.NumberFormat('en-IN').format(currentProduct.price)}`;
-    }
-    if (elements.upiQrContainer) elements.upiQrContainer.style.display = 'none';
-    elements.paymentPanel.style.display = 'flex';
-    elements.paymentPanel.classList.add('active');
-}
-
-function closePaymentPanel() {
-    if (!elements.paymentPanel) return;
-    elements.paymentPanel.style.display = 'none';
-    elements.paymentPanel.classList.remove('active');
-}
-
-function generateUpiQr() {
-    if (!currentProduct || !elements.upiQrImg) return;
-    const upiId = '9063374020@ybl';
-    const name = encodeURIComponent('Kailash Kalamkari');
-    const amount = currentProduct.price;
-    const note = encodeURIComponent(`Order ${currentProduct.code}`);
-    
-    const upiUri = `upi://pay?pa=${upiId}&pn=${name}&am=${amount}&cu=INR&tn=${note}`;
-    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`;
-    
-    elements.upiQrImg.src = qrApiUrl;
-    if (elements.upiQrContainer) elements.upiQrContainer.style.display = 'flex';
-}
-
-function sendWhatsappDirectBooking() {
-    if (!currentProduct) return;
-    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
-    const nameStr = customerInfo.name ? `\n• Customer Name: ${customerInfo.name}` : '';
-    const phoneStr = customerInfo.phone ? `\n• Phone: ${customerInfo.phone}` : '';
-    const addressStr = customerInfo.address ? `\n• Delivery Address: ${customerInfo.address}` : '';
-
-    const message = `Namaste Kailash Kalamkari Workshop,\n\nI wish to reserve this hand-painted masterpiece:${nameStr}${phoneStr}${addressStr}\n\n• Product Code: ${currentProduct.code}\n• Title: ${currentProduct.title}\n• Fabric: ${currentProduct.fabric}\n• Price: INR ${new Intl.NumberFormat('en-IN').format(currentProduct.price)}\n• Link: ${window.location.origin}${window.location.pathname}#product/${currentProduct.code}\n\n• Ref ID: ${visitorId}`;
-    
-    window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
-}
-
 // Event Listeners Registration
 function setupEventListeners() {
     if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', goBack);
@@ -1240,7 +1157,6 @@ function setupEventListeners() {
     
     if (elements.addToWishlistBtn) elements.addToWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
     if (elements.shareBtn) elements.shareBtn.addEventListener('click', () => shareProduct(currentProduct));
-    if (elements.buyNowBtn) elements.buyNowBtn.addEventListener('click', openCheckoutModal);
     if (elements.videoCallBtn) elements.videoCallBtn.addEventListener('click', () => bookVideoCall(currentProduct));
 
     // Floating quick actions
@@ -1249,44 +1165,6 @@ function setupEventListeners() {
     
     const floatingShareBtn = document.getElementById('detail-floating-share-btn');
     if (floatingShareBtn) floatingShareBtn.addEventListener('click', () => shareProduct(currentProduct));
-
-    // Modals
-    if (elements.checkoutModalClose) elements.checkoutModalClose.addEventListener('click', closeCheckoutModal);
-    if (elements.paymentPanelClose) elements.paymentPanelClose.addEventListener('click', closePaymentPanel);
-
-    if (elements.modalWhatsappBtn) {
-        elements.modalWhatsappBtn.addEventListener('click', () => {
-            closeCheckoutModal();
-            sendWhatsappDirectBooking();
-        });
-    }
-
-    if (elements.checkoutForm) {
-        elements.checkoutForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            customerInfo.name = document.getElementById('cust-name').value;
-            customerInfo.phone = document.getElementById('cust-phone').value;
-            customerInfo.email = document.getElementById('cust-email').value;
-            customerInfo.address = document.getElementById('cust-address').value;
-            
-            closeCheckoutModal();
-            openPaymentPanel();
-        });
-    }
-
-    if (elements.payCashfreeBtn) {
-        elements.payCashfreeBtn.addEventListener('click', () => {
-            showToast("Redirecting to Cashfree Secure Checkout Gateway...");
-        });
-    }
-
-    if (elements.payUpiQrBtn) elements.payUpiQrBtn.addEventListener('click', generateUpiQr);
-    if (elements.payWhatsappDirectBtn) {
-        elements.payWhatsappDirectBtn.addEventListener('click', () => {
-            closePaymentPanel();
-            sendWhatsappDirectBooking();
-        });
-    }
 
     if (elements.searchInput) {
         elements.searchInput.addEventListener('input', () => {

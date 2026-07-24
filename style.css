@@ -34,7 +34,7 @@ body {
     background-color: var(--color-milk-ivory);
     color: var(--color-roasted-espresso);
     line-height: 1.7;
-    overflow-x: clip; /* Fixes position: sticky freezing across all mobile & desktop browsers */
+    overflow-x: clip;
     letter-spacing: 0.01em;
     position: relative;
 }
@@ -364,94 +364,17 @@ body {
     color: var(--color-antique-gold);
 }
 
-/* Tier 2: Main Majestic Brand Frame */
+/* Tier 2: Royal Marquee Frame - Compact & Reduced Whitespace */
 .header-main-marquee {
-    padding: 2rem 3rem;
+    padding: 0.8rem 1rem;
 }
 
 .header-main-marquee .header-container {
     max-width: 1400px;
     margin: 0 auto;
-    display: grid;
-    grid-template-columns: 200px 1fr 200px;
+    display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 2rem;
-}
-
-/* ACTIONS (WISHLIST/GALLERY PLAQUE) */
-.header-actions {
-    display: flex;
-    justify-content: flex-start;
-}
-
-.wishlist-plaque {
-    background: transparent;
-    border: 1px solid transparent;
-    border-image: linear-gradient(to bottom, var(--color-royal-gold), var(--color-antique-gold)) 1;
-    padding: 0.6rem 1.2rem;
-    font-family: var(--font-heritage);
-    font-size: 0.75rem;
-    color: var(--color-temple-crimson);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    transition: var(--transition-premium);
-    box-shadow: 0 2px 10px rgba(86, 11, 2, 0.02);
-}
-
-.wishlist-text-group {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    line-height: 1.1;
-    letter-spacing: 0.12em;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.wishlist-text-primary {
-    font-family: var(--font-heritage);
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--color-temple-crimson);
-    transition: var(--transition-premium);
-}
-
-.wishlist-text-secondary {
-    font-size: 0.65rem;
-    color: var(--color-antique-gold);
-    transition: var(--transition-premium);
-}
-
-.wishlist-badge {
-    background: var(--color-royal-gold);
-    color: var(--color-temple-crimson);
-    font-family: var(--font-clean);
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 0.15rem 0.45rem;
-    border-radius: 1px;
-    margin-left: 0.2rem;
-}
-
-.wishlist-plaque:hover {
-    background-color: var(--color-temple-crimson);
-    border-image: none;
-    border-color: var(--color-temple-crimson);
-}
-
-.wishlist-plaque:hover .wishlist-icon,
-.wishlist-plaque:hover .wishlist-text-primary {
-    color: var(--color-milk-ivory);
-}
-
-.wishlist-plaque:hover .wishlist-text-secondary {
-    color: var(--color-royal-gold);
-}
-
-.wishlist-plaque:active {
-    transform: scale(0.97);
 }
 
 /* ROYAL BRAND SEAL FRAME */
@@ -464,7 +387,7 @@ body {
 
 .brand-frame {
     position: relative;
-    padding: 1.5rem 4rem 1.8rem 4rem;
+    padding: 0.8rem 2.5rem 1rem 2.5rem;
     border: 1px solid transparent;
     border-image: linear-gradient(to right, transparent, var(--color-royal-gold), transparent) 1;
     display: flex;
@@ -502,21 +425,20 @@ body {
     z-index: 2;
 }
 
-/* Brand Logo Image Styling */
 .brand-logo-container {
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.4rem;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
 .brand-logo-img {
-    width: 80px;
-    height: 80px;
+    width: 65px;
+    height: 65px;
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid var(--color-royal-gold);
-    box-shadow: 0 4px 15px rgba(86, 11, 2, 0.15), inset 0 0 10px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 15px rgba(86, 11, 2, 0.15);
     transition: transform 0.3s ease;
 }
 
@@ -531,7 +453,7 @@ body {
     font-weight: 700;
     letter-spacing: 0.12em;
     line-height: 1.1;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.2rem;
 }
 
 .brand-tagline {
@@ -549,7 +471,7 @@ body {
     justify-content: center;
     gap: 0.8rem;
     width: 100%;
-    margin-top: 1rem;
+    margin-top: 0.5rem;
 }
 
 .sep-line {
@@ -563,15 +485,11 @@ body {
     font-size: 0.75rem;
 }
 
-.header-spacer-right {
-    width: 100%;
-}
-
 /* ================= FROZEN / STICKY TOP NAVIGATION CONTAINER ================= */
 .sticky-nav-container {
     position: sticky;
     top: 0;
-    z-index: 9999; /* Higher z-index to stay frozen above all page elements */
+    z-index: 9999;
     background: rgba(255, 253, 249, 0.98);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -620,7 +538,7 @@ body {
     box-shadow: 0 4px 20px rgba(86, 11, 2, 0.03);
 }
 
-/* Department Selection Bar */
+/* Department Selection Bar & Wishlist Integration */
 .department-bar-container {
     width: 100%;
     display: flex;
@@ -630,21 +548,24 @@ body {
 
 .department-bar {
     display: flex;
-    gap: 0.8rem;
+    gap: 0.6rem;
     background: rgba(245, 238, 223, 0.5);
     padding: 0.25rem;
     border-radius: 2px;
     border: 1px solid var(--color-gold-muted);
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .department-btn {
     background: transparent;
     border: none;
-    padding: 0.6rem 1.8rem;
+    padding: 0.6rem 1.6rem;
     font-family: var(--font-heritage);
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     letter-spacing: 0.1em;
-    color: rgba(86, 11, 2, 0.65);
+    color: var(--color-temple-crimson);
+    font-weight: 600;
     cursor: pointer;
     position: relative;
     transition: var(--transition-premium);
@@ -665,12 +586,25 @@ body {
 .department-btn.active {
     color: var(--color-milk-ivory);
     background-color: var(--color-temple-crimson);
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .department-btn.active .btn-traditional-dot {
     opacity: 1;
     background: var(--color-royal-gold);
+}
+
+/* Wishlist Button inside Department Bar */
+.wishlist-dept-btn {
+    border: 1px solid var(--color-gold-muted);
+    color: var(--color-temple-crimson);
+    background: var(--color-milk-ivory);
+}
+
+.wishlist-dept-btn:hover {
+    background-color: var(--color-temple-crimson);
+    color: var(--color-milk-ivory);
+    border-color: var(--color-temple-crimson);
 }
 
 /* Category Filters Horizontal Scroll */
@@ -745,7 +679,6 @@ body {
     font-weight: 700;
 }
 
-/* Hide Main Marquee Header in Details Mode, but KEEP Sticky Navigation Frozen */
 body.details-mode .main-header {
     display: none !important;
 }
@@ -913,14 +846,17 @@ body.details-mode .main-header {
     flex-wrap: wrap;
     border-top: 1px dashed var(--color-gold-muted);
     padding-top: 0.8rem;
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.2rem;
 }
 
 .mrp-price {
     font-family: var(--font-clean);
-    font-size: 0.85rem;
-    color: rgba(44, 26, 22, 0.5);
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: rgba(86, 11, 2, 0.55);
     text-decoration: line-through;
+    text-decoration-color: var(--color-temple-crimson);
+    text-decoration-thickness: 1.5px;
 }
 
 .product-price {
@@ -939,31 +875,6 @@ body.details-mode .main-header {
     font-weight: 700;
     padding: 0.15rem 0.45rem;
     border-radius: 2px;
-}
-
-.card-book-now-btn {
-    width: 100%;
-    background: var(--color-parchment);
-    border: 1px solid var(--color-royal-gold);
-    color: var(--color-temple-crimson);
-    font-family: var(--font-heritage);
-    font-size: 0.78rem;
-    font-weight: 600;
-    padding: 0.6rem 0.8rem;
-    cursor: pointer;
-    transition: var(--transition-premium);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.card-book-now-btn:hover {
-    background: var(--color-temple-crimson);
-    color: var(--color-milk-ivory);
-    border-color: var(--color-temple-crimson);
 }
 
 /* Detail Navigation */
@@ -1044,42 +955,6 @@ body.details-mode .main-header {
     z-index: 10;
 }
 
-/* Product Tags/Pills styling */
-.product-tags {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.2rem;
-}
-
-.tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.55rem 1.1rem;
-    border-radius: 999px;
-    font-family: var(--font-clean);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--color-temple-crimson);
-    background: var(--color-milk-ivory);
-    border: 1px solid var(--color-royal-gold);
-    box-shadow: 0 2px 8px rgba(86, 11, 2, 0.05);
-    cursor: pointer;
-    transition: var(--transition-premium);
-}
-
-.tag:hover {
-    background: var(--color-parchment);
-    border-color: var(--color-temple-crimson);
-}
-
-.tag.active {
-    background: var(--color-temple-crimson);
-    color: var(--color-milk-ivory);
-    border-color: var(--color-temple-crimson);
-}
-
 .detail-title {
     font-family: var(--font-heritage);
     font-size: clamp(1.6rem, 3.5vw, 2.4rem);
@@ -1135,16 +1010,28 @@ body.details-mode .main-header {
 
 .price-wrapper {
     display: flex;
-    align-items: baseline;
-    gap: 0.8rem;
+    align-items: center;
+    gap: 0.9rem;
     flex-wrap: wrap;
 }
 
+/* Highly Eye-Catching Strikethrough Price Styling */
 .mrp-price-detail {
     font-family: var(--font-clean);
-    font-size: 1.05rem;
-    color: rgba(44, 26, 22, 0.5);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: rgba(86, 11, 2, 0.6);
     text-decoration: line-through;
+    text-decoration-color: var(--color-temple-crimson);
+    text-decoration-thickness: 2.5px;
+    background: rgba(86, 11, 2, 0.05);
+    padding: 0.2rem 0.65rem;
+    border-radius: 3px;
+    border: 1px dashed rgba(86, 11, 2, 0.25);
+    display: inline-flex;
+    align-items: center;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 3px rgba(86, 11, 2, 0.03);
 }
 
 .currency {
@@ -1534,20 +1421,9 @@ body.details-mode .main-header {
 .btn-icon {
     font-size: 1rem;
     line-height: 1;
-}
-
-.buy-btn {
-    border: none;
-    background: var(--color-royal-gold);
-    color: var(--color-temple-crimson);
-    font-weight: 700;
-    box-shadow: 0 4px 15px rgba(223, 168, 67, 0.2);
-}
-
-.buy-btn:hover {
-    background-color: var(--color-antique-gold);
-    color: var(--color-milk-ivory);
-    box-shadow: 0 6px 22px rgba(181, 131, 42, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .book-now-btn {
@@ -1584,21 +1460,26 @@ body.details-mode .main-header {
     color: var(--color-temple-crimson);
 }
 
-.card-quick-actions,
-.detail-quick-actions {
+.card-quick-actions {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 0.8rem;
+    left: 0.8rem;
     display: flex;
+    flex-direction: column;
     gap: 0.6rem;
     z-index: 10;
 }
 
-.card-quick-actions {
-    top: 0.8rem;
-    left: 0.8rem;
-    right: auto;
+.detail-quick-actions {
+    position: absolute;
+    bottom: 1.2rem;
+    right: 1.2rem;
+    left: auto;
+    top: auto;
+    display: flex;
     flex-direction: column;
+    gap: 0.6rem;
+    z-index: 10;
 }
 
 .card-action-btn {
@@ -1617,6 +1498,13 @@ body.details-mode .main-header {
     transition: var(--transition-premium);
 }
 
+.card-action-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    display: block;
+}
+
 .card-action-btn:hover {
     transform: scale(1.08);
     background: var(--color-parchment);
@@ -1626,182 +1514,6 @@ body.details-mode .main-header {
     background: var(--color-temple-crimson);
     color: var(--color-milk-ivory);
     border-color: var(--color-temple-crimson);
-}
-
-/* Modals & Payment Panel Overlays */
-.checkout-modal-overlay,
-.payment-panel-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 10000;
-    background: rgba(44, 26, 22, 0.85);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-}
-
-.checkout-modal-card,
-.payment-panel-card {
-    background: var(--color-milk-ivory);
-    border: 1px solid var(--color-royal-gold);
-    padding: 2.5rem 2rem;
-    max-width: 480px;
-    width: 100%;
-    position: relative;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-    animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes modalPop {
-    from { opacity: 0; transform: scale(0.92) translateY(20px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.checkout-modal-close,
-.payment-panel-close {
-    position: absolute;
-    top: 1rem;
-    right: 1.2rem;
-    background: transparent;
-    border: none;
-    font-size: 1.8rem;
-    color: var(--color-temple-crimson);
-    cursor: pointer;
-}
-
-.checkout-modal-title {
-    font-family: var(--font-heritage);
-    color: var(--color-temple-crimson);
-    font-size: 1.3rem;
-    text-align: center;
-    margin-bottom: 0.3rem;
-}
-
-.checkout-modal-subtitle {
-    font-size: 0.82rem;
-    color: var(--color-antique-gold);
-    text-align: center;
-    margin-bottom: 1.8rem;
-}
-
-.checkout-form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    margin-bottom: 1.1rem;
-}
-
-.checkout-form-label {
-    font-family: var(--font-heritage);
-    font-size: 0.75rem;
-    color: var(--color-temple-crimson);
-    font-weight: 600;
-}
-
-.checkout-form-input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--color-gold-muted);
-    background: var(--color-parchment);
-    font-family: var(--font-clean);
-    font-size: 0.88rem;
-    color: var(--color-roasted-espresso);
-    outline: none;
-}
-
-.checkout-form-input:focus {
-    border-color: var(--color-temple-crimson);
-}
-
-.checkout-submit-btn {
-    width: 100%;
-    padding: 0.9rem;
-    background: var(--color-royal-gold);
-    color: var(--color-temple-crimson);
-    border: none;
-    font-family: var(--font-heritage);
-    font-size: 0.82rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    transition: var(--transition-premium);
-}
-
-.checkout-submit-btn:hover {
-    background: var(--color-antique-gold);
-    color: var(--color-milk-ivory);
-}
-
-/* Payment Gateway Section inside Modal */
-.payment-gateway-header {
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-
-.payment-logo {
-    font-family: var(--font-heritage);
-    font-size: 1.2rem;
-    color: var(--color-temple-crimson);
-    font-weight: 700;
-}
-
-.payment-tagline {
-    font-size: 0.75rem;
-    color: var(--color-antique-gold);
-    letter-spacing: 0.1em;
-}
-
-.payment-amount-display {
-    font-family: var(--font-heritage);
-    font-size: 1.8rem;
-    color: var(--color-temple-crimson);
-    font-weight: 700;
-    margin-top: 0.6rem;
-}
-
-.payment-methods-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-}
-
-.payment-method-btn {
-    width: 100%;
-    padding: 0.9rem 1.2rem;
-    border: 1px solid var(--color-gold-muted);
-    background: var(--color-milk-ivory);
-    font-family: var(--font-heritage);
-    font-size: 0.82rem;
-    color: var(--color-temple-crimson);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: var(--transition-premium);
-}
-
-.payment-method-btn:hover {
-    border-color: var(--color-temple-crimson);
-    background: var(--color-parchment);
-}
-
-.upi-qr-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 1.5rem;
-    padding-top: 1.2rem;
-    border-top: 1px dashed var(--color-gold-muted);
-    text-align: center;
-}
-
-.upi-qr-image {
-    width: 200px;
-    height: 200px;
-    border: 1px solid var(--color-royal-gold);
-    margin-bottom: 0.8rem;
 }
 
 /* Touch Screens Responsive Matrix & Mobile Optimization */
@@ -1819,20 +1531,6 @@ body.details-mode .main-header {
         grid-template-columns: 1fr 1fr;
         gap: 2.8rem;
     }
-    .header-main-marquee .header-container {
-        grid-template-columns: 1fr;
-        gap: 2.5rem;
-    }
-    .header-spacer-right {
-        display: none;
-    }
-    .brand-area-wrapper {
-        order: 1;
-    }
-    .header-actions {
-        justify-content: center;
-        order: 2;
-    }
 }
 
 @media (max-width: 768px) {
@@ -1844,17 +1542,17 @@ body.details-mode .main-header {
         gap: 0.8rem;
     }
     .header-main-marquee {
-        padding: 1.8rem 1rem;
+        padding: 0.8rem 1rem;
     }
     .brand-frame {
-        padding: 1.2rem 1.5rem 1.5rem 1.5rem;
+        padding: 0.8rem 1.2rem 1rem 1.2rem;
     }
     .brand-content h1 {
         font-size: clamp(1.8rem, 5vw, 2.2rem);
     }
     .brand-logo-img {
-        width: 70px;
-        height: 70px;
+        width: 55px;
+        height: 55px;
     }
     .product-grid {
         grid-template-columns: 1fr;
