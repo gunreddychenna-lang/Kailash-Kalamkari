@@ -482,7 +482,7 @@ body {
 
 .brand-corner {
     position: absolute;
-    width: 100px;
+    width: 10px;
     height: 10px;
     border: 2px solid var(--color-royal-gold);
     pointer-events: none;
