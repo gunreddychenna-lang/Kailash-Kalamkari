@@ -1,7 +1,7 @@
-// === COMPLETE CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
+// === KAILASH KALAMKARI - CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbz5X7kvs2mYVCtMA014ilhSzk60zeed-XF1k-axp_aKRcunhJ51EvtcS0ppJwNQOyAr/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbxrk6213QmHO9K2JNrWDLpUlvzzeMDejqkphVKbMvN3Uu24w04LoHn1nH9kmKAvv5pA/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -258,7 +258,7 @@ async function logVisitorTraffic() {
         visitorType = 'New';
     }
 
-    let locationData = { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Unknown' };
+    let locationData = { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
 
     try {
         const geoResponse = await fetch('https://ipwho.is/');
@@ -267,7 +267,7 @@ async function logVisitorTraffic() {
             locationData.city = geoJson.city || 'Unknown';
             locationData.region = geoJson.region || 'Unknown';
             locationData.country = geoJson.country || 'Unknown';
-            locationData.ip = geoJson.ip ? geoJson.ip.replace(/\d+$/, 'xxx') : 'Unknown';
+            locationData.ip = 'Anonymized'; // IP anonymized for privacy
         }
     } catch (geoError) {
         try {
@@ -277,7 +277,7 @@ async function logVisitorTraffic() {
                 locationData.city = fallbackJson.city || 'Unknown';
                 locationData.region = fallbackJson.region || 'Unknown';
                 locationData.country = fallbackJson.country_name || 'Unknown';
-                locationData.ip = fallbackJson.ip ? fallbackJson.ip.replace(/\d+$/, 'xxx') : 'Unknown';
+                locationData.ip = 'Anonymized'; // IP anonymized for privacy
             }
         } catch (fallbackError) {}
     }
@@ -605,7 +605,6 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        // Rich keyword-focused ALT attribute for Google Image Crawler
         img.alt = `${product.title} - Srikalahasti Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`; 
         img.title = `${product.title} - Hand Painted Kalamkari Saree`;
         img.loading = 'lazy';
