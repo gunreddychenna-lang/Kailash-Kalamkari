@@ -1602,3 +1602,37 @@ body.details-mode .main-header {
         padding: 0.75rem 0.9rem;
     }
 }
+/* Highly Stylized Luxury Video Call Button on Product Cards */
+.card-book-now-btn {
+    width: 100%;
+    margin-top: 0.8rem;
+    background: linear-gradient(135deg, var(--color-temple-crimson) 0%, #741104 100%);
+    border: 1px solid var(--color-royal-gold);
+    color: var(--color-parchment);
+    font-family: var(--font-heritage);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: var(--transition-premium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    box-shadow: 0 4px 12px rgba(86, 11, 2, 0.2);
+}
+
+.card-book-now-btn:hover {
+    background: linear-gradient(135deg, #741104 0%, var(--color-temple-crimson) 100%);
+    color: var(--color-milk-ivory);
+    border-color: #f3c77c;
+    box-shadow: 0 6px 18px rgba(86, 11, 2, 0.38);
+    transform: translateY(-2px);
+}
+
+.card-book-now-btn:active {
+    transform: translateY(0);
+}

@@ -1,3 +1,5 @@
+// === KAILASH KALAMKARI - CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
+
 // =========================================================================
 // 🏷️ GLOBAL STOREWIDE DISCOUNT PERCENTAGE CONFIGURATION
 // Change this value to apply a site-wide discount percentage across all items:
@@ -658,7 +660,18 @@ function renderProducts(products, container, isHorizontal = false) {
                 <span class="product-price">Rs. ${formattedPrice}</span>
                 ${discountPct > 0 ? `<span class="discount-badge">${discountPct}% OFF</span>` : ''}
             </div>
+            <button class="card-book-now-btn">
+                <span>📹 Book Video Call</span>
+            </button>
         `;
+
+        const cardBookBtn = info.querySelector('.card-book-now-btn');
+        if (cardBookBtn) {
+            cardBookBtn.onclick = (e) => {
+                e.stopPropagation();
+                bookVideoCall(product);
+            };
+        }
 
         card.appendChild(imageWrapper);
         card.appendChild(info);
@@ -1254,6 +1267,61 @@ function updateWishlistButtonState() {
         floatingWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
     }
 }
+
+// =========================================================================
+// ⏱️ REAL-TIME USER ACTIVE TIME TRACKER
+// =========================================================================
+let sessionStartTime = Date.now();
+let lastActiveTime = Date.now();
+
+// Reset activity timer whenever user scrolls, clicks, or moves mouse
+['mousemove', 'keydown', 'scroll', 'touchstart', 'click'].forEach(eventType => {
+    window.addEventListener(eventType, () => {
+        lastActiveTime = Date.now();
+    }, { passive: true });
+});
+
+async function sendSessionTimeLog() {
+    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'Unknown';
+    const totalDurationSeconds = Math.round((Date.now() - sessionStartTime) / 1000);
+    
+    // Only log if user interacted within the last 2 minutes (ignores idle background tabs)
+    const isUserActive = (Date.now() - lastActiveTime) < 120000;
+
+    if (!isUserActive) return;
+
+    const minutes = Math.floor(totalDurationSeconds / 60);
+    const seconds = totalDurationSeconds % 60;
+    const formattedTime = `${minutes}m ${seconds}s`;
+
+    try {
+        await fetch(ANALYTICS_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'logTimeSpent',
+                timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+                visitorId: visitorId,
+                durationSeconds: totalDurationSeconds,
+                durationFormatted: formattedTime,
+                pageUrl: window.location.href
+            })
+        });
+    } catch (error) {
+        console.error('Failed to log active session time:', error);
+    }
+}
+
+// Send session duration update every 30 seconds
+setInterval(sendSessionTimeLog, 30000);
+
+// Send final duration update when user switches or closes the browser tab
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        sendSessionTimeLog();
+    }
+});
 
 // Application Startup
 document.addEventListener('DOMContentLoaded', init);
