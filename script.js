@@ -1,7 +1,7 @@
 // === COMPLETE CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbxrk6213QmHO9K2JNrWDLpUlvzzeMDejqkphVKbMvN3Uu24w04LoHn1nH9kmKAvv5pA/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbz5X7kvs2mYVCtMA014ilhSzk60zeed-XF1k-axp_aKRcunhJ51EvtcS0ppJwNQOyAr/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -286,7 +286,7 @@ async function logVisitorTraffic() {
         await fetch(ANALYTICS_API_URL, {
             method: 'POST',
             mode: 'no-cors', 
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'logTraffic',
                 timestamp: timestamp,
@@ -317,7 +317,7 @@ async function logWishlistActivity(action, product) {
         await fetch(ANALYTICS_API_URL, {
             method: 'POST',
             mode: 'no-cors', 
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'logWishlist',
                 timestamp: timestamp,
@@ -919,7 +919,7 @@ function attachFilterHandlers() {
             btn.classList.add('active');
             navigateToState(currentDepartment, btn.dataset.filter, '', true);
             filterAndSearchProducts();
-            showView('catalogue'); // Switch back to catalogue view when a fabric filter is clicked
+            showView('catalogue');
             scrollToDepartment(true);
         });
     });
