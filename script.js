@@ -1,9 +1,9 @@
-// === KAILASH KALAMKARI - CLIENT-SIDE WEBPAGE LOGIC (script.js) ===
+// === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
 
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbxrk6213QmHO9K2JNrWDLpUlvzzeMDejqkphVKbMvN3Uu24w04LoHn1nH9kmKAvv5pA/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbwOTaprjsvBmh2y7ATK-ZpESP5ldJx0RHHSfr6V2lrfH0fRBXtCXSSkmWTUrX5TbGN9/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -27,10 +27,10 @@ let isInitialLoad = true;
 let sessionPushedStates = 0;
 let pendingShareData = null;
 
-let cashfree;
-if (typeof Cashfree !== 'undefined') {
-    cashfree = Cashfree({ mode: "sandbox" });
-}
+// Product View Timer variables
+let currentTrackedProductCode = 'N/A';
+let currentTrackedProductTitle = 'Browsing Main Catalogue';
+let productStartTime = Date.now();
 
 function showToast(message) {
     const toast = document.getElementById('toast');
@@ -236,6 +236,41 @@ function detectBrowser() {
     return 'Other Browser';
 }
 
+// Multi-tier geolocation lookup
+async function getGeoLocation() {
+    try {
+        const res1 = await fetch('https://ipwho.is/');
+        if (res1.ok) {
+            const data = await res1.json();
+            if (data && data.success) {
+                return { city: data.city || 'Unknown', region: data.region || 'Unknown', country: data.country || 'Unknown', ip: data.ip || 'Anonymized' };
+            }
+        }
+    } catch (e) {}
+
+    try {
+        const res2 = await fetch('https://ipapi.co/json/');
+        if (res2.ok) {
+            const data = await res2.json();
+            if (data && data.city) {
+                return { city: data.city || 'Unknown', region: data.region_code || data.region || 'Unknown', country: data.country_name || 'Unknown', ip: data.ip || 'Anonymized' };
+            }
+        }
+    } catch (e) {}
+
+    try {
+        const res3 = await fetch('http://ip-api.com/json/');
+        if (res3.ok) {
+            const data = await res3.json();
+            if (data && data.status === 'success') {
+                return { city: data.city || 'Unknown', region: data.regionName || 'Unknown', country: data.country || 'Unknown', ip: data.query || 'Anonymized' };
+            }
+        }
+    } catch (e) {}
+
+    return { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
+}
+
 async function logVisitorTraffic() {
     if (sessionStorage.getItem('trafficLogged') === 'true') return;
 
@@ -255,25 +290,14 @@ async function logVisitorTraffic() {
     let locationData = { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
 
     const cachedGeo = sessionStorage.getItem('kalamkari_geo_cache');
-    if (cachedGeo) {
+    if (cachedGeo && !cachedGeo.includes('Unknown')) {
         try {
             locationData = JSON.parse(cachedGeo);
         } catch (e) {}
     } else {
-        try {
-            const geoResponse = await fetch('https://ipwho.is/');
-            if (geoResponse.ok) {
-                const geoJson = await geoResponse.json();
-                if (geoJson && geoJson.success) {
-                    locationData.city = geoJson.city || 'Unknown';
-                    locationData.region = geoJson.region || 'Unknown';
-                    locationData.country = geoJson.country || 'Unknown';
-                    locationData.ip = 'Anonymized';
-                    sessionStorage.setItem('kalamkari_geo_cache', JSON.stringify(locationData));
-                }
-            }
-        } catch (geoError) {
-            // Silently fallback without logging console errors
+        locationData = await getGeoLocation();
+        if (locationData.city !== 'Unknown') {
+            sessionStorage.setItem('kalamkari_geo_cache', JSON.stringify(locationData));
         }
     }
 
@@ -299,9 +323,7 @@ async function logVisitorTraffic() {
             })
         });
         sessionStorage.setItem('trafficLogged', 'true');
-    } catch (error) {
-        // Ignore analytics connection errors silently
-    }
+    } catch (error) {}
 }
 
 async function logWishlistActivity(action, product) {
@@ -325,9 +347,7 @@ async function logWishlistActivity(action, product) {
                 wishlistCount: wishlist.length
             })
         });
-    } catch (error) {
-        console.error('Failed to log wishlist activity:', error);
-    }
+    } catch (error) {}
 }
 
 function hideIntroAnimation() {
@@ -542,7 +562,6 @@ async function fetchProducts() {
         renderFilterButtons();
         filterAndSearchProducts();
     } catch (error) {
-        console.error('Error fetching data:', error);
         if (elements.spinner) {
             elements.spinner.textContent = 'Failed to load collection. Please try again later.';
         }
@@ -822,6 +841,13 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
 }
 
 function showView(viewName) {
+    // Record duration for previous view before switching
+    if (viewName === 'catalogue') {
+        switchProductTracking('Browsing Main Catalogue', 'N/A');
+    } else if (viewName === 'wishlist') {
+        switchProductTracking('Viewing Gallery Vault (Wishlist)', 'N/A');
+    }
+
     Object.values(views).forEach(v => v?.classList.remove('active'));
     views[viewName]?.classList.add('active');
     
@@ -930,7 +956,6 @@ function syncFabricFilterUI(fabricParam) {
     filterAndSearchProducts();
 }
 
-// FIXED formatPriceRange Function
 function formatPriceRange(prices) {
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
@@ -941,6 +966,9 @@ function formatPriceRange(prices) {
 }
 
 function showProductDetails(product) {
+    // Record time spent on previous product before opening new product
+    switchProductTracking(product.title || `Product ${product.code}`, product.code);
+
     currentProduct = product;
     isDetailZoomed = false;
     
@@ -1329,51 +1357,58 @@ function updateWishlistButtonState() {
     }
 }
 
-let sessionStartTime = Date.now();
-let lastActiveTime = Date.now();
+// === EVENT-BASED PRODUCT VIEW TIME TRACKING ===
 
-['mousemove', 'keydown', 'scroll', 'touchstart', 'click'].forEach(eventType => {
-    window.addEventListener(eventType, () => {
-        lastActiveTime = Date.now();
-    }, { passive: true });
-});
+function recordProductTimeSpent() {
+    const durationSeconds = Math.round((Date.now() - productStartTime) / 1000);
+    
+    // Only log if visitor stayed at least 2 seconds
+    if (durationSeconds >= 2) {
+        const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'Unknown';
+        const visitorType = sessionStorage.getItem('trafficLogged') === 'true' ? 'Returning' : 'New';
+        const minutes = Math.floor(durationSeconds / 60);
+        const seconds = durationSeconds % 60;
+        const formattedTime = `${minutes}m ${seconds}s`;
 
-async function sendSessionTimeLog() {
-    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'Unknown';
-    const totalDurationSeconds = Math.round((Date.now() - sessionStartTime) / 1000);
-    const isUserActive = (Date.now() - lastActiveTime) < 120000;
-
-    if (!isUserActive) return;
-
-    const minutes = Math.floor(totalDurationSeconds / 60);
-    const seconds = totalDurationSeconds % 60;
-    const formattedTime = `${minutes}m ${seconds}s`;
-
-    try {
-        await fetch(ANALYTICS_API_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'logTimeSpent',
-                timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-                visitorId: visitorId,
-                durationSeconds: totalDurationSeconds,
-                durationFormatted: formattedTime,
-                pageUrl: window.location.href
-            })
+        const payload = JSON.stringify({
+            action: 'logTimeSpent',
+            timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+            visitorId: visitorId,
+            visitorType: visitorType,
+            activeProduct: currentTrackedProductTitle,
+            productCode: currentTrackedProductCode,
+            durationSeconds: durationSeconds,
+            durationFormatted: formattedTime,
+            pageUrl: window.location.href
         });
-    } catch (error) {
-        // Silently handle errors
+
+        console.log("📊 Logged product view event to Sheet:", { visitorId, product: currentTrackedProductTitle, code: currentTrackedProductCode, durationFormatted: formattedTime });
+
+        try {
+            fetch(ANALYTICS_API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: payload
+            });
+        } catch (e) {}
     }
 }
 
-setInterval(sendSessionTimeLog, 30000);
+function switchProductTracking(newTitle, newCode) {
+    // Record duration spent on previous product/view
+    recordProductTimeSpent();
 
+    // Reset timer for new product/view
+    currentTrackedProductTitle = newTitle || 'Browsing Main Catalogue';
+    currentTrackedProductCode = newCode || 'N/A';
+    productStartTime = Date.now();
+}
+
+// Send final time log when user closes tab or switches away
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-        sendSessionTimeLog();
-    }
+    if (document.visibilityState === 'hidden') recordProductTimeSpent();
 });
+window.addEventListener('pagehide', recordProductTimeSpent);
 
 document.addEventListener('DOMContentLoaded', init);
