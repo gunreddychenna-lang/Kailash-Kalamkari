@@ -3,7 +3,7 @@
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbwOTaprjsvBmh2y7ATK-ZpESP5ldJx0RHHSfr6V2lrfH0fRBXtCXSSkmWTUrX5TbGN9/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbwF3r0BkuRyMuOah34jFJASVGeK2p-p0B_M9ZrWrGoKk8fuGjUn6L2F5DJpX-MAxEEG/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -31,6 +31,33 @@ let pendingShareData = null;
 let currentTrackedProductCode = 'N/A';
 let currentTrackedProductTitle = 'Browsing Main Catalogue';
 let productStartTime = Date.now();
+
+// --- CLIENT-SIDE MULTI-LAYER BOT DETECTION ---
+function isBotVisitor() {
+    // 1. Check for automated webdriver flags
+    if (navigator.webdriver) return true;
+
+    // 2. Comprehensive bot & crawler user-agent list
+    const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
+    const botPatterns = [
+        'bot', 'crawler', 'spider', 'crawling', 'slurp', 'facebookexternalhit',
+        'whatsapp', 'twitterbot', 'pinterest', 'linkedinbot', 'telegrambot',
+        'discordbot', 'bingpreview', 'ahrefsbot', 'semrushbot', 'dotbot',
+        'petalbot', 'bytespider', 'yandex', 'baidu', 'headlesschrome',
+        'puppeteer', 'selenium', 'phantomjs', 'phantom', 'prerender',
+        'googlebot', 'bingbot', 'duckduckbot', 'yandexbot', 'sogou',
+        'exabot', 'facebot', 'ia_archiver'
+    ];
+    
+    if (botPatterns.some(pattern => ua.includes(pattern))) {
+        return true;
+    }
+
+    // 3. Check for headless browser properties
+    if (window.callPhantom || window._phantom || window.__nightmare) return true;
+
+    return false;
+}
 
 function showToast(message) {
     const toast = document.getElementById('toast');
@@ -96,7 +123,6 @@ function setupImageFallback(imgElement, product, width = 800) {
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
 
-    // KEYWORD FIRST BROWSER TAB TITLE
     const pageTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title} (Code: ${product.code})`;
     const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari Srikalahasthi Pen Kalamkari master artisans.`;
     const imageUrl = getProductImageUrl(product, 1600);
@@ -263,6 +289,9 @@ async function getGeoLocation() {
 }
 
 async function logVisitorTraffic() {
+    // BOT FILTER CHECK
+    if (isBotVisitor()) return;
+
     if (sessionStorage.getItem('trafficLogged') === 'true') return;
 
     const source = detectTrafficSource();
@@ -299,6 +328,7 @@ async function logVisitorTraffic() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'logTraffic',
+                isBot: false,
                 timestamp: timestamp,
                 source: source,
                 browser: browser,
@@ -318,7 +348,7 @@ async function logVisitorTraffic() {
 }
 
 async function logWishlistActivity(action, product) {
-    if (!product) return;
+    if (isBotVisitor() || !product) return;
     const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
     try {
@@ -328,6 +358,7 @@ async function logWishlistActivity(action, product) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'logWishlist',
+                isBot: false,
                 timestamp: timestamp,
                 eventAction: action,
                 wishlistAction: action,
@@ -1350,9 +1381,10 @@ function updateWishlistButtonState() {
     }
 }
 
-// === EVENT-BASED PRODUCT VIEW TIME TRACKING ===
-
+// === EVENT-BASED PRODUCT VIEW TIME TRACKING (BOT-FILTERED) ===
 function recordProductTimeSpent() {
+    if (isBotVisitor()) return;
+
     const durationSeconds = Math.round((Date.now() - productStartTime) / 1000);
     
     if (durationSeconds >= 2) {
@@ -1364,6 +1396,7 @@ function recordProductTimeSpent() {
 
         const payload = JSON.stringify({
             action: 'logTimeSpent',
+            isBot: false,
             timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
             visitorId: visitorId,
             visitorType: visitorType,
