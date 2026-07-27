@@ -1,5 +1,3 @@
-// === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
-
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
@@ -96,10 +94,10 @@ function setupImageFallback(imgElement, product, width = 800) {
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
 
-    const pageTitle = `${product.title} (Code: ${product.code}) — Kailash Kalamkari Srikalahasti`;
-    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}.`;
+    const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Sreekalahasthi Kalamkari | Kailash Kalamkari`;
+    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Srikalahasti / Sreekalahasthi master artisans.`;
     const imageUrl = getProductImageUrl(product, 1600);
-    const productUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
+    const productUrl = `https://www.kailash-kalamkari.com/#product/${product.code}`;
 
     document.title = pageTitle;
 
@@ -132,7 +130,7 @@ function updateGoogleImageSchemaAndMeta(product) {
                 "@type": "Brand",
                 "name": "Kailash Kalamkari"
             },
-            "category": product.category || product.department || "Kalamkari Hand Painted Sarees",
+            "category": product.category || product.department || "Srikalahasti Sreekalahasthi Kalamkari Hand Painted Sarees",
             "offers": {
                 "@type": "Offer",
                 "url": productUrl,
@@ -143,7 +141,8 @@ function updateGoogleImageSchemaAndMeta(product) {
                 "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                 "seller": {
                     "@type": "Organization",
-                    "name": "Kailash Kalamkari"
+                    "name": "Kailash Kalamkari",
+                    "url": "https://www.kailash-kalamkari.com/"
                 }
             }
         };
@@ -236,7 +235,6 @@ function detectBrowser() {
     return 'Other Browser';
 }
 
-// Multi-tier geolocation lookup
 async function getGeoLocation() {
     try {
         const res1 = await fetch('https://ipwho.is/');
@@ -254,16 +252,6 @@ async function getGeoLocation() {
             const data = await res2.json();
             if (data && data.city) {
                 return { city: data.city || 'Unknown', region: data.region_code || data.region || 'Unknown', country: data.country_name || 'Unknown', ip: data.ip || 'Anonymized' };
-            }
-        }
-    } catch (e) {}
-
-    try {
-        const res3 = await fetch('http://ip-api.com/json/');
-        if (res3.ok) {
-            const data = await res3.json();
-            if (data && data.status === 'success') {
-                return { city: data.city || 'Unknown', region: data.regionName || 'Unknown', country: data.country || 'Unknown', ip: data.query || 'Anonymized' };
             }
         }
     } catch (e) {}
@@ -603,8 +591,8 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        img.alt = `${product.title} - Srikalahasti Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`; 
-        img.title = `${product.title} - Hand Painted Kalamkari Saree`;
+        img.alt = `${product.title} - Srikalahasti Sreekalahasthi Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`; 
+        img.title = `${product.title} - Srikalahasti Kalamkari Saree`;
         img.loading = 'lazy';
         
         const primaryUrl = getProductImageUrl(product, 800);
@@ -841,7 +829,6 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
 }
 
 function showView(viewName) {
-    // Record duration for previous view before switching
     if (viewName === 'catalogue') {
         switchProductTracking('Browsing Main Catalogue', 'N/A');
     } else if (viewName === 'wishlist') {
@@ -857,7 +844,7 @@ function showView(viewName) {
         document.body.classList.remove('details-mode');
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
-            document.title = "Kailash Kalamkari — Sacred Hand-Painted Heritage Silks & Sarees";
+            document.title = "Kailash Kalamkari — Authentic Srikalahasti & Sreekalahasthi Kalamkari Sarees";
         } else {
             window.scrollTo(0, 0);
         }
@@ -966,7 +953,6 @@ function formatPriceRange(prices) {
 }
 
 function showProductDetails(product) {
-    // Record time spent on previous product before opening new product
     switchProductTracking(product.title || `Product ${product.code}`, product.code);
 
     currentProduct = product;
@@ -990,7 +976,7 @@ function showProductDetails(product) {
         delete elements.detailImage.dataset.fallbackAttempted;
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.alt = `${product.title} - Srikalahasti Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`;
+        elements.detailImage.alt = `${product.title} - Srikalahasti Sreekalahasthi Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`;
         elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
@@ -1046,7 +1032,7 @@ function openFullScreenImage(product) {
 
     const overlayPrimaryUrl = getProductImageUrl(product, 2000);
     elements.overlayImage.src = overlayPrimaryUrl;
-    elements.overlayImage.alt = `${product.title} High Resolution Detail`;
+    elements.overlayImage.alt = `${product.title} High Resolution Detail - Srikalahasti Sreekalahasthi Kalamkari`;
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
@@ -1162,7 +1148,7 @@ function updateWishlistCount() {
 function bookVideoCall(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
-    const productUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
+    const productUrl = `https://www.kailash-kalamkari.com/#product/${product.code}`;
     const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK NOW to inspect this hand-painted artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Special Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)} (MRP: INR ${new Intl.NumberFormat('en-IN').format(product.mrp)})\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
@@ -1171,7 +1157,7 @@ function bookVideoCall(product = currentProduct) {
 
 function shareProduct(product = currentProduct) {
     if (!product) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}#product/${product.code}`;
+    const shareUrl = `https://www.kailash-kalamkari.com/#product/${product.code}`;
     const shareText = `Explore this authentic hand-painted Srikalahasti Kalamkari artwork: "${product.title}" (Code: ${product.code})`;
     
     pendingShareData = { title: product.title, text: shareText, url: shareUrl };
@@ -1362,7 +1348,6 @@ function updateWishlistButtonState() {
 function recordProductTimeSpent() {
     const durationSeconds = Math.round((Date.now() - productStartTime) / 1000);
     
-    // Only log if visitor stayed at least 2 seconds
     if (durationSeconds >= 2) {
         const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'Unknown';
         const visitorType = sessionStorage.getItem('trafficLogged') === 'true' ? 'Returning' : 'New';
@@ -1382,8 +1367,6 @@ function recordProductTimeSpent() {
             pageUrl: window.location.href
         });
 
-        console.log("📊 Logged product view event to Sheet:", { visitorId, product: currentTrackedProductTitle, code: currentTrackedProductCode, durationFormatted: formattedTime });
-
         try {
             fetch(ANALYTICS_API_URL, {
                 method: 'POST',
@@ -1396,16 +1379,13 @@ function recordProductTimeSpent() {
 }
 
 function switchProductTracking(newTitle, newCode) {
-    // Record duration spent on previous product/view
     recordProductTimeSpent();
 
-    // Reset timer for new product/view
     currentTrackedProductTitle = newTitle || 'Browsing Main Catalogue';
     currentTrackedProductCode = newCode || 'N/A';
     productStartTime = Date.now();
 }
 
-// Send final time log when user closes tab or switches away
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') recordProductTimeSpent();
 });
