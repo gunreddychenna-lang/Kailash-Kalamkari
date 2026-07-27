@@ -1,3 +1,5 @@
+// === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
+
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
@@ -94,10 +96,11 @@ function setupImageFallback(imgElement, product, width = 800) {
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
 
-    const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Sreekalahasthi Kalamkari | Kailash Kalamkari`;
-    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Srikalahasti / Sreekalahasthi master artisans.`;
+    // KEYWORD FIRST BROWSER TAB TITLE
+    const pageTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title} (Code: ${product.code})`;
+    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari Srikalahasthi Pen Kalamkari master artisans.`;
     const imageUrl = getProductImageUrl(product, 1600);
-    const productUrl = `https://www.kailash-kalamkari.com/#product/${product.code}`;
+    const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
 
     document.title = pageTitle;
 
@@ -118,7 +121,7 @@ function updateGoogleImageSchemaAndMeta(product) {
         const schemaData = {
             "@context": "https://schema.org/",
             "@type": "Product",
-            "name": product.title,
+            "name": `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title}`,
             "image": [
                 imageUrl,
                 getProductImageUrl(product, 800)
@@ -130,7 +133,7 @@ function updateGoogleImageSchemaAndMeta(product) {
                 "@type": "Brand",
                 "name": "Kailash Kalamkari"
             },
-            "category": product.category || product.department || "Srikalahasti Sreekalahasthi Kalamkari Hand Painted Sarees",
+            "category": product.category || product.department || "Srikalahasthi Pen Kalamkari Hand Painted Sarees",
             "offers": {
                 "@type": "Offer",
                 "url": productUrl,
@@ -417,7 +420,7 @@ async function init() {
 
     navigateToState(initialDept, initialFabric, hash, false);
 
-    if (hash.startsWith('#product/') || hash === '#wishlist') {
+    if (hash.includes('kalamkari') || hash.startsWith('#product/') || hash === '#wishlist') {
         const injectHistory = () => {
             if (sessionPushedStates === 0) {
                 navigateToState(initialDept, initialFabric, '', false);
@@ -571,15 +574,17 @@ function renderProducts(products, container, isHorizontal = false) {
         card.dataset.code = product.code;
         if (product.qty <= 0) card.classList.add('sold-out');
 
+        const keywordSlug = `#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
+
         card.onclick = () => {
             if (isHorizontal) {
                 const url = new URL(window.location.href);
-                url.hash = `#product/${product.code}`;
+                url.hash = keywordSlug;
                 window.history.replaceState({ isDepartmentSelection: true }, '', url);
                 handlePopState();
             } else {
                 sessionPushedStates++;
-                window.location.hash = `#product/${product.code}`;
+                window.location.hash = keywordSlug;
             }
         };
 
@@ -591,8 +596,8 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        img.alt = `${product.title} - Srikalahasti Sreekalahasthi Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`; 
-        img.title = `${product.title} - Srikalahasti Kalamkari Saree`;
+        img.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric})`; 
+        img.title = `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title}`;
         img.loading = 'lazy';
         
         const primaryUrl = getProductImageUrl(product, 800);
@@ -844,7 +849,7 @@ function showView(viewName) {
         document.body.classList.remove('details-mode');
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
-            document.title = "Kailash Kalamkari — Authentic Srikalahasti & Sreekalahasthi Kalamkari Sarees";
+            document.title = "Kailash Kalamkari — Srikalahasthi Pen Kalamkari Sarees & Silks";
         } else {
             window.scrollTo(0, 0);
         }
@@ -976,7 +981,7 @@ function showProductDetails(product) {
         delete elements.detailImage.dataset.fallbackAttempted;
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.alt = `${product.title} - Srikalahasti Sreekalahasthi Hand Painted Kalamkari Saree Code ${product.code} (${product.fabric})`;
+        elements.detailImage.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric})`;
         elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
@@ -1032,7 +1037,7 @@ function openFullScreenImage(product) {
 
     const overlayPrimaryUrl = getProductImageUrl(product, 2000);
     elements.overlayImage.src = overlayPrimaryUrl;
-    elements.overlayImage.alt = `${product.title} High Resolution Detail - Srikalahasti Sreekalahasthi Kalamkari`;
+    elements.overlayImage.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Detail`;
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
@@ -1148,7 +1153,7 @@ function updateWishlistCount() {
 function bookVideoCall(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
-    const productUrl = `https://www.kailash-kalamkari.com/#product/${product.code}`;
+    const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
     const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK NOW to inspect this hand-painted artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Special Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)} (MRP: INR ${new Intl.NumberFormat('en-IN').format(product.mrp)})\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
@@ -1157,8 +1162,8 @@ function bookVideoCall(product = currentProduct) {
 
 function shareProduct(product = currentProduct) {
     if (!product) return;
-    const shareUrl = `https://www.kailash-kalamkari.com/#product/${product.code}`;
-    const shareText = `Explore this authentic hand-painted Srikalahasti Kalamkari artwork: "${product.title}" (Code: ${product.code})`;
+    const shareUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
+    const shareText = `Explore this authentic hand-painted Kailash Kalamkari Srikalahasthi Pen Kalamkari artwork: "${product.title}" (Code: ${product.code})`;
     
     pendingShareData = { title: product.title, text: shareText, url: shareUrl };
 
@@ -1299,8 +1304,11 @@ function handlePopState() {
     currentDepartment = departmentParam;
     updateDepartmentUI();
 
-    if (hash.startsWith('#product/')) {
-        const productCode = hash.split('/')[1];
+    if (hash.includes('kalamkari') || hash.startsWith('#product/')) {
+        // Extract product code accurately from hash (handles both new and old hash formats)
+        const codeMatch = hash.match(/(?:[A-Za-z0-9_-]+-)?([A-Za-z0-9]+)$/);
+        const productCode = codeMatch ? codeMatch[1] : hash.split('/').pop();
+
         if (allProducts.length === 0) {
             fetchProducts().then(() => {
                 const product = allProducts.find(p => p.code === productCode);
