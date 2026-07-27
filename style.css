@@ -139,7 +139,7 @@ body {
     pointer-events: none;
     background-image: 
         radial-gradient(circle at 50% 50%, rgba(255, 253, 249, 0.5) 0%, var(--color-parchment) 100%),
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M0 8 L16 8 M8 0 L8 16' stroke='%23ebdcc5' stroke-width='0.55' stroke-opacity='0.4'/%3E%3Cpath d='M0 4 L16 4 M4 0 L4 16 M0 12 L12 12 M12 0 L12 16' stroke='%23ebdcc5' stroke-width='0.25' stroke-opacity='0.2'/%3E%3C/svg%3E");
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M0 8 L16 8 M8 0 L8 16' stroke='%23ebdcc5' stroke-width='0.55' stroke-opacity='0.4'/%3E%3Cpath d='M0 4 L16 4 M4 0 L4 16 M0 12 L16 12 M12 0 L12 16' stroke='%23ebdcc5' stroke-width='0.25' stroke-opacity='0.2'/%3E%3C/svg%3E");
     background-color: var(--color-parchment);
 }
 

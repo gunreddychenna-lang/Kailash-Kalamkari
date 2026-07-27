@@ -849,7 +849,7 @@ function showView(viewName) {
         document.body.classList.remove('details-mode');
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
-            document.title = "Kailash Kalamkari — Srikalahasthi Pen Kalamkari Sarees & Silks";
+            document.title = "Kalamkari Sarees — Srikalahasti & Sreekalahasthi Kalamkari Sarees | Kailash Kalamkari";
         } else {
             window.scrollTo(0, 0);
         }
@@ -1305,7 +1305,6 @@ function handlePopState() {
     updateDepartmentUI();
 
     if (hash.includes('kalamkari') || hash.startsWith('#product/')) {
-        // Extract product code accurately from hash (handles both new and old hash formats)
         const codeMatch = hash.match(/(?:[A-Za-z0-9_-]+-)?([A-Za-z0-9]+)$/);
         const productCode = codeMatch ? codeMatch[1] : hash.split('/').pop();
 
