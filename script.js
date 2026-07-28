@@ -3,7 +3,7 @@
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbwF3r0BkuRyMuOah34jFJASVGeK2p-p0B_M9ZrWrGoKk8fuGjUn6L2F5DJpX-MAxEEG/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyHsqCuadgTZzelj2RIVWW8rE_b_BdONgm3Wy0BsDNcPAJ5O1PPVXPPQyWuq4o3xJPE/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';

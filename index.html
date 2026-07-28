@@ -357,5 +357,90 @@
     </footer>
 
     <script src="script.js"></script>
+
+    <!-- CRM VISITOR TRACKING SCRIPT -->
+    <script>
+    (function () {
+      // ⚠️ REPLACE THE URL BELOW WITH YOUR GOOGLE APPS SCRIPT WEB APP URL
+      const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyHsqCuadgTZzelj2RIVWW8rE_b_BdONgm3Wy0BsDNcPAJ5O1PPVXPPQyWuq4o3xJPE/exec";
+
+      // 1. Get or Create Persistent Visitor ID
+      function getVisitorId() {
+        let visitorId = localStorage.getItem("crm_visitor_id");
+        if (!visitorId) {
+          visitorId = "visitor-" + Math.random().toString(36).substring(2, 10) + "-" + Math.random().toString(36).substring(2, 8);
+          localStorage.setItem("crm_visitor_id", visitorId);
+        }
+        return visitorId;
+      }
+
+      // 2. Track Active Engagement Time (Pauses timer when tab is hidden or minimized)
+      let startTime = Date.now();
+      let totalActiveTimeMs = 0;
+      let isTabVisible = !document.hidden;
+
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) {
+          if (isTabVisible) {
+            totalActiveTimeMs += Date.now() - startTime;
+            isTabVisible = false;
+          }
+        } else {
+          if (!isTabVisible) {
+            startTime = Date.now();
+            isTabVisible = true;
+          }
+        }
+      });
+
+      // 3. Send Payload on Page Exit
+      let isFlushed = false;
+      function flushSessionData() {
+        if (isFlushed) return;
+
+        if (isTabVisible) {
+          totalActiveTimeMs += Date.now() - startTime;
+        }
+
+        const durationSeconds = Math.round(totalActiveTimeMs / 1000);
+
+        // Ignore bounce visits under 1 second
+        if (durationSeconds < 1) return;
+
+        isFlushed = true;
+
+        // Parse query string for product code or SKU
+        const urlParams = new URLSearchParams(window.location.search);
+        const productCode = urlParams.get("product_code") || urlParams.get("sku") || urlParams.get("id") || "N/A";
+        const title = document.title ? document.title.split("|")[0].trim() : "Browsing Main Catalogue";
+
+        const payload = {
+          visitor_id: getVisitorId(),
+          timestamp: new Date().toLocaleString("en-GB"),
+          product_title: title,
+          product_code: productCode,
+          time_spent_sec: durationSeconds,
+          page_url: window.location.href,
+          traffic_source: document.referrer ? (document.referrer.includes(window.location.hostname) ? "Internal" : document.referrer) : "Direct"
+        };
+
+        const blobPayload = new Blob([JSON.stringify(payload)], { type: "text/plain;charset=UTF-8" });
+
+        if (navigator.sendBeacon && WEBHOOK_URL.startsWith("http")) {
+          navigator.sendBeacon(WEBHOOK_URL, blobPayload);
+        } else if (WEBHOOK_URL.startsWith("http")) {
+          fetch(WEBHOOK_URL, {
+            method: "POST",
+            body: JSON.stringify(payload),
+            keepalive: true
+          });
+        }
+      }
+
+      // Bind exit events
+      window.addEventListener("pagehide", flushSessionData);
+      window.addEventListener("beforeunload", flushSessionData);
+    })();
+    </script>
 </body>
 </html>
