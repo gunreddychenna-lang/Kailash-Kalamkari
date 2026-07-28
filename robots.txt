@@ -1,3 +1,14 @@
 User-agent: *
 Allow: /
-Sitemap: https://www.kailashkalamkari.com/sitemap.xml
+
+# Block Scrapers, AI Crawlers & Bad Bots
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: CCBot
+User-agent: AnthropicAI
+User-agent: Bytespider
+User-agent: AhrefsBot
+User-agent: SemrushBot
+User-agent: DotBot
+User-agent: PetalBot
+Disallow: /

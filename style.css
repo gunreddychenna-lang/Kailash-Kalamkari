@@ -26,6 +26,7 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+/* ANTI-SCRAPING / TEXT SELECTION PROTECTION */
 body {
     font-family: var(--font-clean);
     background-color: var(--color-milk-ivory);
@@ -34,6 +35,14 @@ body {
     overflow-x: clip;
     letter-spacing: 0.01em;
     position: relative;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+img {
+    -webkit-user-drag: none;
 }
 
 /* SEO HERITAGE CONTENT BLOCK STYLING */

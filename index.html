@@ -340,7 +340,7 @@
                         <svg class="footer-svg" viewBox="0 0 24 24"><path d="M12 0C7.802 0 4 3.403 4 7.602c0 5.6 7.199 15.598 7.5 15.998.1.2.3.4.5.4s.4-.2.5-.4c.3-.4 7.5-10.398 7.5-15.998C20 3.403 16.198 0 12 0zm0 11c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/></svg>
                     </a>
                     <a href="https://www.facebook.com/p/Kailash-Kalamkari-100069955411990/" target="_blank" rel="noopener" class="footer-logo-link" title="Facebook">
-                        <svg class="footer-svg" viewBox="0 0 24 24"><path d="M22.675 0h-21.35c-.732 0-1.325.593-1.325 1.325v21.351c0 .731.593 1.324 1.325 1.324h11.495v-9.294h-3.128v-3.622h3.128v-2.671c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.795.715-1.795 1.763v2.313h3.587l-.467 3.622h-3.12v9.293h6.116c.73 0 1.323-.593 1.323-1.325v-21.35c0-.732-.593-1.325-1.325-1.325z"/></svg>
+                        <svg class="footer-svg" viewBox="0 0 24 24"><path d="M22.675 0h-21.35c-.732 0-1.325.593-1.325 1.325v21.351c0 .731.593 1.324 1.325 1.324h11.495v-9.294h-3.128v-3.622h3.128v-2.671c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.795.715-1.795 1.763v2.313h3.587l me-.467 3.622h-3.12v9.293h6.116c.73 0 1.323-.593 1.323-1.325v-21.35c0-.732-.593-1.325-1.325-1.325z"/></svg>
                     </a>
                 </div>
             </div>
@@ -361,10 +361,8 @@
     <!-- CRM VISITOR TRACKING SCRIPT -->
     <script>
     (function () {
-      // ⚠️ REPLACE THE URL BELOW WITH YOUR GOOGLE APPS SCRIPT WEB APP URL
       const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyHsqCuadgTZzelj2RIVWW8rE_b_BdONgm3Wy0BsDNcPAJ5O1PPVXPPQyWuq4o3xJPE/exec";
 
-      // 1. Get or Create Persistent Visitor ID
       function getVisitorId() {
         let visitorId = localStorage.getItem("crm_visitor_id");
         if (!visitorId) {
@@ -374,7 +372,6 @@
         return visitorId;
       }
 
-      // 2. Track Active Engagement Time (Pauses timer when tab is hidden or minimized)
       let startTime = Date.now();
       let totalActiveTimeMs = 0;
       let isTabVisible = !document.hidden;
@@ -393,7 +390,6 @@
         }
       });
 
-      // 3. Send Payload on Page Exit
       let isFlushed = false;
       function flushSessionData() {
         if (isFlushed) return;
@@ -403,13 +399,10 @@
         }
 
         const durationSeconds = Math.round(totalActiveTimeMs / 1000);
-
-        // Ignore bounce visits under 1 second
         if (durationSeconds < 1) return;
 
         isFlushed = true;
 
-        // Parse query string for product code or SKU
         const urlParams = new URLSearchParams(window.location.search);
         const productCode = urlParams.get("product_code") || urlParams.get("sku") || urlParams.get("id") || "N/A";
         const title = document.title ? document.title.split("|")[0].trim() : "Browsing Main Catalogue";
@@ -437,7 +430,6 @@
         }
       }
 
-      // Bind exit events
       window.addEventListener("pagehide", flushSessionData);
       window.addEventListener("beforeunload", flushSessionData);
     })();

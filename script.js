@@ -9,7 +9,7 @@
 //   • 'MIDDLE_BUDGET_FIRST' -> Middle budget sarees first (around TARGET_MIDDLE_PRICE)
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 
-// Target price for Middle Budget Mode (e.g. 12000 for ₹12,000)
+// Target price for Middle Budget Mode (e.g. 12000 for ₹12,000 or 26500 for ₹26,500)
 const TARGET_MIDDLE_PRICE = 26500;
 
 // Pin a specific fabric to the top (e.g. 'Kanchipuram', 'Patola', 'Ikkath', or 'none')
@@ -65,6 +65,14 @@ function isBotVisitor() {
     if (window.callPhantom || window._phantom || window.__nightmare) return true;
     return false;
 }
+
+// Disable right-click & developer key bindings to deter scrapers
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'F12' || (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 's' || e.key === 'S'))) {
+        e.preventDefault();
+    }
+});
 
 function showToast(message) {
     const toast = document.getElementById('toast');
@@ -170,12 +178,10 @@ function updateGoogleImageSchemaAndMeta(product) {
     }
 }
 
-// =========================================================================
-// 🔄 DYNAMIC SORTING FUNCTION (HIGHEST / LOWEST / MIDDLE BUDGET / FEATURED)
-// =========================================================================
+// DYNAMIC PRODUCT SORTING FUNCTION
 function sortProductsByPrice(products) {
     return [...products].sort((a, b) => {
-        // 1. Featured Fabric Priority Check (e.g. Pin Kanchipuram to top)
+        // 1. Featured Fabric Pinning
         if (FEATURED_FABRIC_FIRST && FEATURED_FABRIC_FIRST.toLowerCase() !== 'none') {
             const featuredKey = FEATURED_FABRIC_FIRST.toLowerCase().trim();
             const aIsFeatured = (a.fabric || '').toLowerCase().includes(featuredKey) || (a.title || '').toLowerCase().includes(featuredKey);
@@ -185,7 +191,7 @@ function sortProductsByPrice(products) {
             if (!aIsFeatured && bIsFeatured) return 1;
         }
 
-        // 2. Apply Selected Sorting Strategy
+        // 2. Selected Strategy
         if (SORT_STRATEGY === 'PRICE_LOW_TO_HIGH') {
             return (a.price || 0) - (b.price || 0);
         } else if (SORT_STRATEGY === 'MIDDLE_BUDGET_FIRST') {
@@ -193,7 +199,6 @@ function sortProductsByPrice(products) {
             const distB = Math.abs((b.price || 0) - TARGET_MIDDLE_PRICE);
             return distA - distB;
         } else {
-            // Default: 'PRICE_HIGH_TO_LOW'
             return (b.price || 0) - (a.price || 0);
         }
     });
