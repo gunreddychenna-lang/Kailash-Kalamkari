@@ -181,7 +181,6 @@ function updateGoogleImageSchemaAndMeta(product) {
 // DYNAMIC PRODUCT SORTING FUNCTION
 function sortProductsByPrice(products) {
     return [...products].sort((a, b) => {
-        // 1. Featured Fabric Pinning
         if (FEATURED_FABRIC_FIRST && FEATURED_FABRIC_FIRST.toLowerCase() !== 'none') {
             const featuredKey = FEATURED_FABRIC_FIRST.toLowerCase().trim();
             const aIsFeatured = (a.fabric || '').toLowerCase().includes(featuredKey) || (a.title || '').toLowerCase().includes(featuredKey);
@@ -191,7 +190,6 @@ function sortProductsByPrice(products) {
             if (!aIsFeatured && bIsFeatured) return 1;
         }
 
-        // 2. Selected Strategy
         if (SORT_STRATEGY === 'PRICE_LOW_TO_HIGH') {
             return (a.price || 0) - (b.price || 0);
         } else if (SORT_STRATEGY === 'MIDDLE_BUDGET_FIRST') {
@@ -245,6 +243,7 @@ function navigateToState(department, fabric, hash = '', push = true) {
 function updateDepartmentUI() {
     const activeDepartment = getDepartmentConfig();
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
+        if (element.id === 'wishlist-trigger') return; // Skip wishlist button styling
         const departmentKey = normalizeDepartment(element.dataset.department);
         element.classList.toggle('active', departmentKey === currentDepartment);
     });
@@ -678,7 +677,10 @@ function renderProducts(products, container, isHorizontal = false) {
         cardWishlistBtn.className = `card-action-btn card-wishlist-btn ${isInWishlist ? 'active' : ''}`;
         cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
         cardWishlistBtn.title = 'Add to Gallery Vault';
+        
+        // FIXED CARD HEART CLICK HANDLER
         cardWishlistBtn.onclick = (e) => {
+            e.preventDefault();
             e.stopPropagation();
             toggleWishlist(product);
         };
@@ -1150,7 +1152,6 @@ function toggleWishlist(product = currentProduct) {
     updateWishlistCount();
     updateWishlistButtonState();
     syncAllCardWishlistButtons();
-    filterAndSearchProducts();
 
     if (views.wishlist && views.wishlist.classList.contains('active')) {
         renderWishlist();
@@ -1250,10 +1251,15 @@ function setupEventListeners() {
     if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', goBack);
     if (elements.backFromWishlistBtn) elements.backFromWishlistBtn.addEventListener('click', goBack);
     
+    // 1. WISHLIST HEADER BUTTON
     if (elements.viewWishlistBtn) {
-        elements.viewWishlistBtn.addEventListener('click', () => {
+        elements.viewWishlistBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             sessionPushedStates++;
             window.location.hash = '#wishlist';
+            renderWishlist();
+            showView('wishlist');
         });
     }
     
@@ -1315,8 +1321,10 @@ function setupEventListeners() {
         });
     }
 
+    // 2. EXCLUDE WISHLIST BUTTON FROM GENERAL DEPARTMENT SWITCHER
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
+            if (element.id === 'wishlist-trigger') return; // 🛑 EXCLUDE WISHLIST BUTTON FROM SWITCHING TO CATALOGUE
             setDepartment(element.dataset.department, { pushState: true }); 
             showView('catalogue');
         });
@@ -1380,8 +1388,10 @@ function handlePopState() {
 }
 
 function updateWishlistButtonState() {
-    if (!currentProduct || !elements.addToWishlistBtn) return;
-    const isInWishlist = wishlist.some(item => item.code === currentProduct.code);
+    if (!elements.addToWishlistBtn) return;
+    
+    const prod = currentProduct;
+    const isInWishlist = prod ? wishlist.some(item => item.code === prod.code) : false;
     
     if (isInWishlist) {
         elements.addToWishlistBtn.classList.add('active');
@@ -1400,7 +1410,7 @@ function updateWishlistButtonState() {
     }
 }
 
-// === EVENT-BASED PRODUCT VIEW TIME TRACKING (BOT-FILTERED) ===
+// EVENT-BASED PRODUCT VIEW TIME TRACKING (BOT-FILTERED)
 function recordProductTimeSpent() {
     if (isBotVisitor()) return;
 
