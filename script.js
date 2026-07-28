@@ -1,5 +1,21 @@
 // === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
 
+// =========================================================================
+// 🎯 DISPLAY & SORTING STRATEGY CONFIGURATION (EDIT HERE ANYTIME)
+// =========================================================================
+// Options for SORT_STRATEGY:
+//   • 'PRICE_HIGH_TO_LOW'   -> Highest priced sarees first
+//   • 'PRICE_LOW_TO_HIGH'   -> Lowest priced sarees first
+//   • 'MIDDLE_BUDGET_FIRST' -> Middle budget sarees first (around TARGET_MIDDLE_PRICE)
+const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
+
+// Target price for Middle Budget Mode (e.g. 12000 for ₹12,000)
+const TARGET_MIDDLE_PRICE = 26500;
+
+// Pin a specific fabric to the top (e.g. 'Kanchipuram', 'Patola', 'Ikkath', or 'none')
+const FEATURED_FABRIC_FIRST = 'Kanchipuram';
+// =========================================================================
+
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
@@ -34,10 +50,7 @@ let productStartTime = Date.now();
 
 // --- CLIENT-SIDE MULTI-LAYER BOT DETECTION ---
 function isBotVisitor() {
-    // 1. Check for automated webdriver flags
     if (navigator.webdriver) return true;
-
-    // 2. Comprehensive bot & crawler user-agent list
     const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
     const botPatterns = [
         'bot', 'crawler', 'spider', 'crawling', 'slurp', 'facebookexternalhit',
@@ -48,14 +61,8 @@ function isBotVisitor() {
         'googlebot', 'bingbot', 'duckduckbot', 'yandexbot', 'sogou',
         'exabot', 'facebot', 'ia_archiver'
     ];
-    
-    if (botPatterns.some(pattern => ua.includes(pattern))) {
-        return true;
-    }
-
-    // 3. Check for headless browser properties
+    if (botPatterns.some(pattern => ua.includes(pattern))) return true;
     if (window.callPhantom || window._phantom || window.__nightmare) return true;
-
     return false;
 }
 
@@ -76,7 +83,6 @@ function getGoogleDriveId(product) {
     }
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
     const isGoogleDrive = rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com') || rawUrl.includes('googleusercontent.com');
-    
     if (isGoogleDrive) {
         const idRegex = /(?:id=|file\/d\/|\/d\/|)([a-zA-Z0-9_-]{25,50})(?:[/?&]|$|=)/;
         const potentialIdMatch = rawUrl.match(idRegex);
@@ -122,23 +128,18 @@ function setupImageFallback(imgElement, product, width = 800) {
 
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
-
     const pageTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title} (Code: ${product.code})`;
     const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari Srikalahasthi Pen Kalamkari master artisans.`;
     const imageUrl = getProductImageUrl(product, 1600);
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
 
     document.title = pageTitle;
-
     const ogTitle = document.getElementById('og-title');
     if (ogTitle) ogTitle.setAttribute('content', pageTitle);
-
     const ogDesc = document.getElementById('og-desc');
     if (ogDesc) ogDesc.setAttribute('content', pageDesc);
-
     const ogImage = document.getElementById('og-image');
     if (ogImage) ogImage.setAttribute('content', imageUrl);
-
     const ogUrl = document.getElementById('og-url');
     if (ogUrl) ogUrl.setAttribute('content', productUrl);
 
@@ -148,17 +149,11 @@ function updateGoogleImageSchemaAndMeta(product) {
             "@context": "https://schema.org/",
             "@type": "Product",
             "name": `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title}`,
-            "image": [
-                imageUrl,
-                getProductImageUrl(product, 800)
-            ],
+            "image": [imageUrl, getProductImageUrl(product, 800)],
             "description": product.description || pageDesc,
             "sku": product.code,
             "mpn": product.code,
-            "brand": {
-                "@type": "Brand",
-                "name": "Kailash Kalamkari"
-            },
+            "brand": { "@type": "Brand", "name": "Kailash Kalamkari" },
             "category": product.category || product.department || "Srikalahasthi Pen Kalamkari Hand Painted Sarees",
             "offers": {
                 "@type": "Offer",
@@ -168,19 +163,40 @@ function updateGoogleImageSchemaAndMeta(product) {
                 "priceValidUntil": "2028-12-31",
                 "itemCondition": "https://schema.org/NewCondition",
                 "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                "seller": {
-                    "@type": "Organization",
-                    "name": "Kailash Kalamkari",
-                    "url": "https://www.kailash-kalamkari.com/"
-                }
+                "seller": { "@type": "Organization", "name": "Kailash Kalamkari", "url": "https://www.kailash-kalamkari.com/" }
             }
         };
         schemaScript.textContent = JSON.stringify(schemaData);
     }
 }
 
+// =========================================================================
+// 🔄 DYNAMIC SORTING FUNCTION (HIGHEST / LOWEST / MIDDLE BUDGET / FEATURED)
+// =========================================================================
 function sortProductsByPrice(products) {
-    return [...products].sort((a, b) => (b.price || 0) - (a.price || 0));
+    return [...products].sort((a, b) => {
+        // 1. Featured Fabric Priority Check (e.g. Pin Kanchipuram to top)
+        if (FEATURED_FABRIC_FIRST && FEATURED_FABRIC_FIRST.toLowerCase() !== 'none') {
+            const featuredKey = FEATURED_FABRIC_FIRST.toLowerCase().trim();
+            const aIsFeatured = (a.fabric || '').toLowerCase().includes(featuredKey) || (a.title || '').toLowerCase().includes(featuredKey);
+            const bIsFeatured = (b.fabric || '').toLowerCase().includes(featuredKey) || (b.title || '').toLowerCase().includes(featuredKey);
+
+            if (aIsFeatured && !bIsFeatured) return -1;
+            if (!aIsFeatured && bIsFeatured) return 1;
+        }
+
+        // 2. Apply Selected Sorting Strategy
+        if (SORT_STRATEGY === 'PRICE_LOW_TO_HIGH') {
+            return (a.price || 0) - (b.price || 0);
+        } else if (SORT_STRATEGY === 'MIDDLE_BUDGET_FIRST') {
+            const distA = Math.abs((a.price || 0) - TARGET_MIDDLE_PRICE);
+            const distB = Math.abs((b.price || 0) - TARGET_MIDDLE_PRICE);
+            return distA - distB;
+        } else {
+            // Default: 'PRICE_HIGH_TO_LOW'
+            return (b.price || 0) - (a.price || 0);
+        }
+    });
 }
 
 function getInitialDepartment() {
@@ -289,9 +305,7 @@ async function getGeoLocation() {
 }
 
 async function logVisitorTraffic() {
-    // BOT FILTER CHECK
     if (isBotVisitor()) return;
-
     if (sessionStorage.getItem('trafficLogged') === 'true') return;
 
     const source = detectTrafficSource();
