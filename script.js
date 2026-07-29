@@ -1,25 +1,17 @@
 // === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
 
 // =========================================================================
-// 🎯 DISPLAY & SORTING STRATEGY CONFIGURATION (EDIT HERE ANYTIME)
+// 🎯 DISPLAY & SORTING STRATEGY CONFIGURATION
 // =========================================================================
-// Options for SORT_STRATEGY:
-//   • 'PRICE_HIGH_TO_LOW'   -> Highest priced sarees first
-//   • 'PRICE_LOW_TO_HIGH'   -> Lowest priced sarees first
-//   • 'MIDDLE_BUDGET_FIRST' -> Middle budget sarees first (around TARGET_MIDDLE_PRICE)
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
-
-// Target price for Middle Budget Mode (e.g. 12000 for ₹12,000 or 26500 for ₹26,500)
 const TARGET_MIDDLE_PRICE = 26500;
-
-// Pin a specific fabric to the top (e.g. 'Kanchipuram', 'Patola', 'Ikkath', or 'none')
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
 // =========================================================================
 
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
 const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyHsqCuadgTZzelj2RIVWW8rE_b_BdONgm3Wy0BsDNcPAJ5O1PPVXPPQyWuq4o3xJPE/exec'; 
+const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyN2Kzp3kxYP0uQjf6RU4yZ9KtL_WmV2gn3TVdj3a-e_EIEN5nWDvyrNOOiPfzBGAvc/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -46,11 +38,52 @@ let pendingShareData = null;
 // Product View Timer variables
 let currentTrackedProductCode = 'N/A';
 let currentTrackedProductTitle = 'Browsing Main Catalogue';
-let productStartTime = Date.now();
+let hasUserInteracted = false;
+
+// Register interaction to filter automated scrapers/bots
+['click', 'touchstart', 'scroll', 'mousemove'].forEach(event => {
+    window.addEventListener(event, () => { hasUserInteracted = true; }, { once: true });
+});
+
+// === SMART ACTIVE VISIBILITY TIMER ===
+// Automatically pauses when you switch tabs to Google AI Studio, WhatsApp, or YouTube
+let activeTimeSpentMs = 0;
+let lastActiveStartTime = Date.now();
+let isTabVisible = !document.hidden;
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        if (isTabVisible) {
+            activeTimeSpentMs += (Date.now() - lastActiveStartTime);
+            isTabVisible = false;
+        }
+    } else {
+        if (!isTabVisible) {
+            lastActiveStartTime = Date.now();
+            isTabVisible = true;
+        }
+    }
+});
+
+function getActiveDurationSeconds() {
+    let totalMs = activeTimeSpentMs;
+    if (isTabVisible) {
+        totalMs += (Date.now() - lastActiveStartTime);
+    }
+    return Math.round(totalMs / 1000);
+}
+
+function resetProductTimer() {
+    activeTimeSpentMs = 0;
+    lastActiveStartTime = Date.now();
+    isTabVisible = !document.hidden;
+}
 
 // --- CLIENT-SIDE MULTI-LAYER BOT DETECTION ---
 function isBotVisitor() {
     if (navigator.webdriver) return true;
+    if (window.innerWidth === 0 || window.innerHeight === 0) return true;
+
     const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
     const botPatterns = [
         'bot', 'crawler', 'spider', 'crawling', 'slurp', 'facebookexternalhit',
@@ -178,7 +211,6 @@ function updateGoogleImageSchemaAndMeta(product) {
     }
 }
 
-// DYNAMIC PRODUCT SORTING FUNCTION
 function sortProductsByPrice(products) {
     return [...products].sort((a, b) => {
         if (FEATURED_FABRIC_FIRST && FEATURED_FABRIC_FIRST.toLowerCase() !== 'none') {
@@ -243,7 +275,7 @@ function navigateToState(department, fabric, hash = '', push = true) {
 function updateDepartmentUI() {
     const activeDepartment = getDepartmentConfig();
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
-        if (element.id === 'wishlist-trigger') return; // Skip wishlist button styling
+        if (element.id === 'wishlist-trigger') return;
         const departmentKey = normalizeDepartment(element.dataset.department);
         element.classList.toggle('active', departmentKey === currentDepartment);
     });
@@ -284,23 +316,49 @@ function detectBrowser() {
     return 'Other Browser';
 }
 
+// MULTI-SERVER LOCATION DETECTOR (Works seamlessly on Safari, iOS, and Android)
 async function getGeoLocation() {
     try {
-        const res1 = await fetch('https://ipwho.is/');
+        const res1 = await fetch('https://freeipapi.com/api/json');
         if (res1.ok) {
             const data = await res1.json();
-            if (data && data.success) {
-                return { city: data.city || 'Unknown', region: data.region || 'Unknown', country: data.country || 'Unknown', ip: data.ip || 'Anonymized' };
+            if (data && data.cityName && data.cityName !== 'Unknown') {
+                return {
+                    city: data.cityName || 'Unknown',
+                    region: data.regionName || 'Unknown',
+                    country: data.countryName || 'Unknown',
+                    ip: data.ipAddress || 'Anonymized'
+                };
             }
         }
     } catch (e) {}
 
     try {
-        const res2 = await fetch('https://ipapi.co/json/');
+        const res2 = await fetch('https://ipwho.is/');
         if (res2.ok) {
             const data = await res2.json();
+            if (data && data.success && data.city) {
+                return {
+                    city: data.city || 'Unknown',
+                    region: data.region || 'Unknown',
+                    country: data.country || 'Unknown',
+                    ip: data.ip || 'Anonymized'
+                };
+            }
+        }
+    } catch (e) {}
+
+    try {
+        const res3 = await fetch('https://ipapi.co/json/');
+        if (res3.ok) {
+            const data = await res3.json();
             if (data && data.city) {
-                return { city: data.city || 'Unknown', region: data.region_code || data.region || 'Unknown', country: data.country_name || 'Unknown', ip: data.ip || 'Anonymized' };
+                return {
+                    city: data.city || 'Unknown',
+                    region: data.region_code || data.region || 'Unknown',
+                    country: data.country_name || 'Unknown',
+                    ip: data.ip || 'Anonymized'
+                };
             }
         }
     } catch (e) {}
@@ -308,9 +366,9 @@ async function getGeoLocation() {
     return { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
 }
 
+// LOG VISITOR TRAFFIC (Does NOT lock 'Unknown' into cache)
 async function logVisitorTraffic() {
     if (isBotVisitor()) return;
-    if (sessionStorage.getItem('trafficLogged') === 'true') return;
 
     const source = detectTrafficSource();
     const browser = detectBrowser();
@@ -326,12 +384,10 @@ async function logVisitorTraffic() {
     }
 
     let locationData = { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
-
     const cachedGeo = sessionStorage.getItem('kalamkari_geo_cache');
-    if (cachedGeo && !cachedGeo.includes('Unknown')) {
-        try {
-            locationData = JSON.parse(cachedGeo);
-        } catch (e) {}
+
+    if (cachedGeo && !cachedGeo.includes('"city":"Unknown"')) {
+        try { locationData = JSON.parse(cachedGeo); } catch (e) {}
     } else {
         locationData = await getGeoLocation();
         if (locationData.city !== 'Unknown') {
@@ -339,54 +395,29 @@ async function logVisitorTraffic() {
         }
     }
 
+    const payload = JSON.stringify({
+        action: 'logTraffic',
+        isBot: false,
+        timestamp: timestamp,
+        source: source,
+        browser: browser,
+        pageUrl: window.location.href,
+        visitorId: visitorId,
+        visitorType: visitorType,
+        city: locationData.city,
+        region: locationData.region,
+        country: locationData.country,
+        ip: locationData.ip,
+        userAgent: navigator.userAgent
+    });
+
     try {
-        await fetch(ANALYTICS_API_URL, {
-            method: 'POST',
-            mode: 'no-cors', 
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'logTraffic',
-                isBot: false,
-                timestamp: timestamp,
-                source: source,
-                browser: browser,
-                pageUrl: window.location.href,
-                userAgent: navigator.userAgent,
-                visitorId: visitorId,
-                visitorType: visitorType,
-                city: locationData.city,
-                region: locationData.region,
-                country: locationData.country,
-                ip: locationData.ip,
-                wishlistCount: wishlist.length
-            })
-        });
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(ANALYTICS_API_URL, new Blob([payload], { type: 'text/plain' }));
+        } else {
+            fetch(ANALYTICS_API_URL, { method: 'POST', mode: 'no-cors', body: payload });
+        }
         sessionStorage.setItem('trafficLogged', 'true');
-    } catch (error) {}
-}
-
-async function logWishlistActivity(action, product) {
-    if (isBotVisitor() || !product) return;
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-
-    try {
-        await fetch(ANALYTICS_API_URL, {
-            method: 'POST',
-            mode: 'no-cors', 
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'logWishlist',
-                isBot: false,
-                timestamp: timestamp,
-                eventAction: action,
-                wishlistAction: action,
-                productCode: product.code || '',
-                productTitle: product.title || '',
-                price: product.price || 0,
-                fabric: product.fabric || '',
-                wishlistCount: wishlist.length
-            })
-        });
     } catch (error) {}
 }
 
@@ -548,14 +579,10 @@ async function fetchProducts() {
             let mrpFromSheet = parsePrice(getFieldValue(item, ['mrp', 'm.r.p', 'original price', 'mrp price', 'list price']));
 
             let rawMrp = mrpFromSheet;
-            if (!rawMrp) {
-                rawMrp = sellingPrice;
-            }
+            if (!rawMrp) rawMrp = sellingPrice;
 
             if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
-                if (rawMrp <= sellingPrice) {
-                    rawMrp = sellingPrice;
-                }
+                if (rawMrp <= sellingPrice) rawMrp = sellingPrice;
                 sellingPrice = Math.round(rawMrp * (1 - GLOBAL_DISCOUNT_PERCENTAGE / 100));
             }
 
@@ -678,7 +705,6 @@ function renderProducts(products, container, isHorizontal = false) {
         cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
         cardWishlistBtn.title = 'Add to Gallery Vault';
         
-        // FIXED CARD HEART CLICK HANDLER
         cardWishlistBtn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1136,15 +1162,12 @@ function moveOverlayZoom(event) {
 function toggleWishlist(product = currentProduct) {
     if (!product) return;
     const index = wishlist.findIndex(item => item.code === product.code);
-    let action = '';
     
     if (index === -1) {
         wishlist.push(product);
-        action = 'Added';
         showToast(`Added to Gallery Vault!`);
     } else {
         wishlist.splice(index, 1);
-        action = 'Removed';
         showToast(`Removed from Gallery Vault.`);
     }
     
@@ -1156,8 +1179,6 @@ function toggleWishlist(product = currentProduct) {
     if (views.wishlist && views.wishlist.classList.contains('active')) {
         renderWishlist();
     }
-
-    logWishlistActivity(action, product);
 }
 
 function renderWishlist() {
@@ -1251,7 +1272,6 @@ function setupEventListeners() {
     if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', goBack);
     if (elements.backFromWishlistBtn) elements.backFromWishlistBtn.addEventListener('click', goBack);
     
-    // 1. WISHLIST HEADER BUTTON
     if (elements.viewWishlistBtn) {
         elements.viewWishlistBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1321,10 +1341,9 @@ function setupEventListeners() {
         });
     }
 
-    // 2. EXCLUDE WISHLIST BUTTON FROM GENERAL DEPARTMENT SWITCHER
     document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
         element.addEventListener('click', () => {
-            if (element.id === 'wishlist-trigger') return; // 🛑 EXCLUDE WISHLIST BUTTON FROM SWITCHING TO CATALOGUE
+            if (element.id === 'wishlist-trigger') return;
             setDepartment(element.dataset.department, { pushState: true }); 
             showView('catalogue');
         });
@@ -1410,11 +1429,11 @@ function updateWishlistButtonState() {
     }
 }
 
-// EVENT-BASED PRODUCT VIEW TIME TRACKING (BOT-FILTERED)
+// RECORD ACTIVE PRODUCT SESSION TIME
 function recordProductTimeSpent() {
-    if (isBotVisitor()) return;
+    if (isBotVisitor() || !hasUserInteracted) return;
 
-    const durationSeconds = Math.round((Date.now() - productStartTime) / 1000);
+    const durationSeconds = getActiveDurationSeconds();
     
     if (durationSeconds >= 2) {
         const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'Unknown';
@@ -1437,12 +1456,11 @@ function recordProductTimeSpent() {
         });
 
         try {
-            fetch(ANALYTICS_API_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: payload
-            });
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(ANALYTICS_API_URL, new Blob([payload], { type: 'text/plain' }));
+            } else {
+                fetch(ANALYTICS_API_URL, { method: 'POST', mode: 'no-cors', body: payload });
+            }
         } catch (e) {}
     }
 }
@@ -1452,7 +1470,7 @@ function switchProductTracking(newTitle, newCode) {
 
     currentTrackedProductTitle = newTitle || 'Browsing Main Catalogue';
     currentTrackedProductCode = newCode || 'N/A';
-    productStartTime = Date.now();
+    resetProductTimer();
 }
 
 document.addEventListener('visibilitychange', () => {
