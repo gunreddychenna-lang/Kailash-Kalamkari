@@ -131,13 +131,15 @@ function getGoogleDriveId(product) {
     return null;
 }
 
-// HIGH-PERFORMANCE CLOUDFLARE IMAGE PROXY (COMPLETELY PREVENTS GOOGLE 429 RATE LIMITS)
-function getProductImageUrl(product, width = 800) {
+// FULL ULTRA-HD IMAGE GENERATOR (FETCHES 2000px CRISP MASTER IMAGE WITH q=92 HD QUALITY)
+function getProductImageUrl(product, width = 1200) {
     if (!product) return DEFAULT_IMAGE;
     
     const fileId = getGoogleDriveId(product);
     if (fileId) {
-        return `https://wsrv.nl/?url=drive.google.com/thumbnail?id=${fileId}&w=${width}&output=webp`;
+        const fetchWidth = Math.max(width, 1600);
+        const highResDriveUrl = encodeURIComponent(`https://drive.google.com/thumbnail?id=${fileId}&sz=w${fetchWidth}`);
+        return `https://wsrv.nl/?url=${highResDriveUrl}&w=${width}&q=92`;
     }
     
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
@@ -148,14 +150,14 @@ function getProductImageUrl(product, width = 800) {
     }
     
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        return `https://wsrv.nl/?url=${encodeURIComponent(rawUrl)}&w=${width}&output=webp`;
+        return `https://wsrv.nl/?url=${encodeURIComponent(rawUrl)}&w=${width}&q=92`;
     }
 
     return DEFAULT_IMAGE;
 }
 
-// FALLBACK HANDLER FOR DIRECT GOOGLE THUMBNAILS & LH3
-function setupImageFallback(imgElement, product, width = 800) {
+// FALLBACK HANDLER FOR HIGH-RES GOOGLE DRIVE THUMBNAILS & DIRECT CDN
+function setupImageFallback(imgElement, product, width = 1200) {
     const fileId = getGoogleDriveId(product);
     if (!fileId) return;
 
@@ -177,7 +179,7 @@ function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
     const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Pen Kalamkari Saree | Kailash Kalamkari`;
     const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) with natural organic mineral dyes. Code: ${product.code}. Offer Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari master artisans in Srikalahasti.`;
-    const imageUrl = getProductImageUrl(product, 1600);
+    const imageUrl = getProductImageUrl(product, 2000);
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
 
     document.title = pageTitle;
@@ -207,7 +209,7 @@ function updateGoogleImageSchemaAndMeta(product) {
             "@context": "https://schema.org/",
             "@type": "Product",
             "name": `Kailash Kalamkari ${product.title}`,
-            "image": [imageUrl, getProductImageUrl(product, 800)],
+            "image": [imageUrl, getProductImageUrl(product, 1000)],
             "description": product.description || pageDesc,
             "sku": product.code,
             "mpn": product.code,
@@ -700,10 +702,10 @@ function renderProducts(products, container, isHorizontal = false) {
         img.title = `Kailash Kalamkari Srikalahasti — ${product.title}`;
         img.loading = 'lazy';
         
-        const primaryUrl = getProductImageUrl(product, 800);
+        const primaryUrl = getProductImageUrl(product, 1200);
         img.src = primaryUrl;
 
-        setupImageFallback(img, product, 800);
+        setupImageFallback(img, product, 1200);
         imageWrapper.appendChild(img);
 
         if (discountPct > 0) {
@@ -1083,7 +1085,7 @@ function showProductDetails(product) {
         delete elements.detailImage.dataset.fallbackAttempted;
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.alt = `Kailash Kalamkari ${product.title} Code ${product.code} (${product.fabric})`;
+        elements.detailImage.alt = `Kailash Kalamkari Hand-Painted Srikalahasti Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric} Pure Silk Saree)`;
         elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
@@ -1139,7 +1141,7 @@ function openFullScreenImage(product) {
 
     const overlayPrimaryUrl = getProductImageUrl(product, 2000);
     elements.overlayImage.src = overlayPrimaryUrl;
-    elements.overlayImage.alt = `Kailash Kalamkari ${product.title} Detail`;
+    elements.overlayImage.alt = `Kailash Kalamkari Srikalahasti Pen Kalamkari ${product.title} Detail`;
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
