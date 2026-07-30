@@ -1,12 +1,8 @@
 // === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
 
-// =========================================================================
-// 🎯 DISPLAY & SORTING STRATEGY CONFIGURATION
-// =========================================================================
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
-// =========================================================================
 
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
@@ -19,8 +15,8 @@ const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/s
 const SHARE_ICON_SVG = `<svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>`;
 
 const DEPARTMENTS = [
-    { key: 'saree', label: 'Sarees', singular: 'Saree' },
-    { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
+    { key: 'saree', label: 'Kalamkari Sarees', singular: 'Kalamkari Saree' },
+    { key: 'dupatta', label: 'Kalamkari Dupattas', singular: 'Kalamkari Dupatta' }
 ];
 
 let allProducts = [];
@@ -35,18 +31,14 @@ let isInitialLoad = true;
 let sessionPushedStates = 0;
 let pendingShareData = null;
 
-// Product View Timer variables
 let currentTrackedProductCode = 'N/A';
-let currentTrackedProductTitle = 'Browsing Main Catalogue';
+let currentTrackedProductTitle = 'Browsing Main Kalamkari Catalogue';
 let hasUserInteracted = false;
 
-// Register interaction to filter automated scrapers/bots
 ['click', 'touchstart', 'scroll', 'mousemove'].forEach(event => {
     window.addEventListener(event, () => { hasUserInteracted = true; }, { once: true });
 });
 
-// === SMART ACTIVE VISIBILITY TIMER ===
-// Automatically pauses when you switch tabs to Google AI Studio, WhatsApp, or YouTube
 let activeTimeSpentMs = 0;
 let lastActiveStartTime = Date.now();
 let isTabVisible = !document.hidden;
@@ -79,7 +71,6 @@ function resetProductTimer() {
     isTabVisible = !document.hidden;
 }
 
-// --- CLIENT-SIDE MULTI-LAYER BOT DETECTION ---
 function isBotVisitor() {
     if (navigator.webdriver) return true;
     if (window.innerWidth === 0 || window.innerHeight === 0) return true;
@@ -99,7 +90,6 @@ function isBotVisitor() {
     return false;
 }
 
-// Disable right-click & developer key bindings to deter scrapers
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('keydown', (e) => {
     if (e.key === 'F12' || (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 's' || e.key === 'S'))) {
@@ -117,38 +107,54 @@ function showToast(message) {
     }, 3200);
 }
 
+// ENHANCED GOOGLE DRIVE FILE ID EXTRACTION
 function getGoogleDriveId(product) {
     if (!product) return null;
-    if (product.imageId && typeof product.imageId === 'string' && product.imageId.length >= 25) {
-        return product.imageId;
+    
+    if (product.imageId && typeof product.imageId === 'string') {
+        const cleanedId = product.imageId.trim();
+        if (/^[a-zA-Z0-9_-]{25,50}$/.test(cleanedId)) return cleanedId;
     }
+    
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
-    const isGoogleDrive = rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com') || rawUrl.includes('googleusercontent.com');
-    if (isGoogleDrive) {
-        const idRegex = /(?:id=|file\/d\/|\/d\/|)([a-zA-Z0-9_-]{25,50})(?:[/?&]|$|=)/;
-        const potentialIdMatch = rawUrl.match(idRegex);
-        if (potentialIdMatch && potentialIdMatch[1]) {
-            return potentialIdMatch[1];
-        }
+    if (!rawUrl) return null;
+
+    if (/^[a-zA-Z0-9_-]{25,50}$/.test(rawUrl)) {
+        return rawUrl;
     }
+
+    const match = rawUrl.match(/(?:id=|file\/d\/|\/d\/|document\/d\/)([a-zA-Z0-9_-]{25,50})/);
+    if (match && match[1]) {
+        return match[1];
+    }
+    
     return null;
 }
 
+// HIGH-PERFORMANCE CLOUDFLARE IMAGE PROXY (COMPLETELY PREVENTS GOOGLE 429 RATE LIMITS)
 function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
+    
     const fileId = getGoogleDriveId(product);
     if (fileId) {
-        return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
+        return `https://wsrv.nl/?url=drive.google.com/thumbnail?id=${fileId}&w=${width}&output=webp`;
     }
+    
     const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
     if (!rawUrl) return DEFAULT_IMAGE;
-    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:') || rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+    
+    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
         return rawUrl;
     }
-    if (rawUrl.includes('drive.google.com')) return 'https://' + rawUrl;
+    
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+        return `https://wsrv.nl/?url=${encodeURIComponent(rawUrl)}&w=${width}&output=webp`;
+    }
+
     return DEFAULT_IMAGE;
 }
 
+// FALLBACK HANDLER FOR DIRECT GOOGLE THUMBNAILS & LH3
 function setupImageFallback(imgElement, product, width = 800) {
     const fileId = getGoogleDriveId(product);
     if (!fileId) return;
@@ -159,7 +165,7 @@ function setupImageFallback(imgElement, product, width = 800) {
             imgElement.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
         } else if (imgElement.dataset.fallbackAttempted === "1") {
             imgElement.dataset.fallbackAttempted = "2";
-            imgElement.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            imgElement.src = `https://lh3.googleusercontent.com/d/${fileId}`;
         } else if (imgElement.dataset.fallbackAttempted === "2") {
             imgElement.dataset.fallbackAttempted = "failed_all";
             imgElement.src = DEFAULT_IMAGE;
@@ -169,12 +175,16 @@ function setupImageFallback(imgElement, product, width = 800) {
 
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
-    const pageTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title} (Code: ${product.code})`;
-    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) featuring traditional natural mineral dyes. Code: ${product.code}. Special Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari Srikalahasthi Pen Kalamkari master artisans.`;
+    const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Pen Kalamkari Saree | Kailash Kalamkari`;
+    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) with natural organic mineral dyes. Code: ${product.code}. Offer Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari master artisans in Srikalahasti.`;
     const imageUrl = getProductImageUrl(product, 1600);
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
 
     document.title = pageTitle;
+    
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.setAttribute('content', pageDesc);
+
     const ogTitle = document.getElementById('og-title');
     if (ogTitle) ogTitle.setAttribute('content', pageTitle);
     const ogDesc = document.getElementById('og-desc');
@@ -184,18 +194,25 @@ function updateGoogleImageSchemaAndMeta(product) {
     const ogUrl = document.getElementById('og-url');
     if (ogUrl) ogUrl.setAttribute('content', productUrl);
 
+    const twitterTitle = document.getElementById('twitter-title');
+    if (twitterTitle) twitterTitle.setAttribute('content', pageTitle);
+    const twitterDesc = document.getElementById('twitter-desc');
+    if (twitterDesc) twitterDesc.setAttribute('content', pageDesc);
+    const twitterImage = document.getElementById('twitter-image');
+    if (twitterImage) twitterImage.setAttribute('content', imageUrl);
+
     const schemaScript = document.getElementById('dynamic-product-schema');
     if (schemaScript) {
         const schemaData = {
             "@context": "https://schema.org/",
             "@type": "Product",
-            "name": `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title}`,
+            "name": `Kailash Kalamkari ${product.title}`,
             "image": [imageUrl, getProductImageUrl(product, 800)],
             "description": product.description || pageDesc,
             "sku": product.code,
             "mpn": product.code,
             "brand": { "@type": "Brand", "name": "Kailash Kalamkari" },
-            "category": product.category || product.department || "Srikalahasthi Pen Kalamkari Hand Painted Sarees",
+            "category": product.category || product.department || "Srikalahasti Pen Kalamkari Hand Painted Silk Sarees",
             "offers": {
                 "@type": "Offer",
                 "url": productUrl,
@@ -316,7 +333,6 @@ function detectBrowser() {
     return 'Other Browser';
 }
 
-// MULTI-SERVER LOCATION DETECTOR (Works seamlessly on Safari, iOS, and Android)
 async function getGeoLocation() {
     try {
         const res1 = await fetch('https://freeipapi.com/api/json');
@@ -366,7 +382,6 @@ async function getGeoLocation() {
     return { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
 }
 
-// LOG VISITOR TRAFFIC (Does NOT lock 'Unknown' into cache)
 async function logVisitorTraffic() {
     if (isBotVisitor()) return;
 
@@ -587,8 +602,6 @@ async function fetchProducts() {
             }
 
             const description = String(getFieldValue(item, ['description', 'product description', 'desc'])).trim();
-            const deptConfig = DEPARTMENTS.find(d => d.key === departmentKey) || { singular: 'Product' };
-            const deptSingular = deptConfig.singular || 'Product';
 
             const customTitle = String(getFieldValue(item, ['product name', 'saree name', 'dupatta name', 'item name', 'name', 'title'])).trim();
 
@@ -596,12 +609,23 @@ async function fetchProducts() {
             if (!title) {
                 if (fabric) {
                     let baseFabric = fabric.trim();
-                    if (departmentKey === 'saree') baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
-                    else if (departmentKey === 'dupatta') baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
-                    title = `${baseFabric} ${deptSingular}`;
+                    if (departmentKey === 'saree') {
+                        baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
+                    } else if (departmentKey === 'dupatta') {
+                        baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
+                    }
+                    
+                    let shortFabric = baseFabric.replace(/\s+silk\s*$/i, '');
+                    if (!shortFabric) shortFabric = baseFabric;
+
+                    const deptSingular = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
+                    title = `${shortFabric} Pen Kalamkari ${deptSingular}`;
                 } else {
-                    title = `Product ${code}`;
+                    const deptSingular = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
+                    title = `Pen Kalamkari ${deptSingular} ${code}`;
                 }
+            } else {
+                title = title.replace(/Hand-Painted Srikalahasti /gi, '').replace(/Sreekalahasthi /gi, '');
             }
 
             return {
@@ -630,7 +654,7 @@ async function fetchProducts() {
         filterAndSearchProducts();
     } catch (error) {
         if (elements.spinner) {
-            elements.spinner.textContent = 'Failed to load collection. Please try again later.';
+            elements.spinner.textContent = 'Failed to load Kalamkari collection. Please try again later.';
         }
     }
 }
@@ -640,7 +664,7 @@ function renderProducts(products, container, isHorizontal = false) {
     container.innerHTML = '';
     
     if (products.length === 0) {
-        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--color-antique-gold); padding: 3rem 0;">No sacred artworks found matching your criteria.</p>';
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--color-antique-gold); padding: 3rem 0;">No authentic hand-painted Kalamkari artworks found matching your criteria.</p>';
         return;
     }
     
@@ -672,8 +696,8 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        img.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric})`; 
-        img.title = `Kailash Kalamkari Srikalahasthi Pen Kalamkari — ${product.title}`;
+        img.alt = `Kailash Kalamkari ${product.title} Code ${product.code} (${product.fabric})`; 
+        img.title = `Kailash Kalamkari Srikalahasti — ${product.title}`;
         img.loading = 'lazy';
         
         const primaryUrl = getProductImageUrl(product, 800);
@@ -703,7 +727,7 @@ function renderProducts(products, container, isHorizontal = false) {
         const cardWishlistBtn = document.createElement('button');
         cardWishlistBtn.className = `card-action-btn card-wishlist-btn ${isInWishlist ? 'active' : ''}`;
         cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
-        cardWishlistBtn.title = 'Add to Gallery Vault';
+        cardWishlistBtn.title = 'Add to Kalamkari Gallery Vault';
         
         cardWishlistBtn.onclick = (e) => {
             e.preventDefault();
@@ -714,7 +738,7 @@ function renderProducts(products, container, isHorizontal = false) {
         const cardShareBtn = document.createElement('button');
         cardShareBtn.className = 'card-action-btn card-share-btn';
         cardShareBtn.innerHTML = SHARE_ICON_SVG;
-        cardShareBtn.title = 'Share Artwork';
+        cardShareBtn.title = 'Share Saree Artwork';
         cardShareBtn.onclick = (e) => {
             e.stopPropagation();
             shareProduct(product);
@@ -736,7 +760,7 @@ function renderProducts(products, container, isHorizontal = false) {
                 <span class="product-price">Rs. ${formattedPrice}</span>
             </div>
             <button class="card-book-now-btn">
-                <span>📹 BOOK NOW</span>
+                <span>📹 BOOK NOW — VIEW LIVE</span>
             </button>
         `;
 
@@ -856,13 +880,13 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
         const key = fabric.toLowerCase().replace(/\s+/g, ' ').trim();
 
         if (!fabricMap.has(key)) {
-            const deptConfig = DEPARTMENTS.find(d => d.key === targetDept) || { label: 'Products' };
+            const deptConfig = DEPARTMENTS.find(d => d.key === targetDept) || { label: 'Kalamkari Sarees' };
             const isPluralFabric = fabric.toLowerCase().includes('saree') || fabric.toLowerCase().includes('sari') || fabric.toLowerCase().includes('dupatta');
             
             fabricMap.set(key, {
                 key: key,
                 fabricName: fabric,
-                label: isPluralFabric ? fabric : `${fabric} ${deptConfig.label}`,
+                label: isPluralFabric ? fabric : `${fabric} Kalamkari Sarees`,
                 products: []
             });
         }
@@ -913,9 +937,9 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
 
 function showView(viewName) {
     if (viewName === 'catalogue') {
-        switchProductTracking('Browsing Main Catalogue', 'N/A');
+        switchProductTracking('Browsing Main Kalamkari Catalogue', 'N/A');
     } else if (viewName === 'wishlist') {
-        switchProductTracking('Viewing Gallery Vault (Wishlist)', 'N/A');
+        switchProductTracking('Viewing Kalamkari Gallery Vault (Wishlist)', 'N/A');
     }
 
     Object.values(views).forEach(v => v?.classList.remove('active'));
@@ -927,7 +951,7 @@ function showView(viewName) {
         document.body.classList.remove('details-mode');
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
-            document.title = "Kalamkari Sarees — Srikalahasti & Sreekalahasthi Kalamkari Sarees | Kailash Kalamkari";
+            document.title = "Kalamkari Sarees — Hand-Painted Srikalahasti Pen Kalamkari Silk Sarees | Kailash Kalamkari";
         } else {
             window.scrollTo(0, 0);
         }
@@ -966,7 +990,7 @@ function renderFilterButtons() {
         button.className = 'filter-btn';
         button.dataset.filter = key;
         button.innerHTML = `
-            <span class="filter-title">${entry.label.toUpperCase()}</span>
+            <span class="filter-title">${entry.label.toUpperCase()} KALAMKARI</span>
             <span class="filter-price">${priceText}</span>
         `;
         elements.filtersContainer.appendChild(button);
@@ -1036,7 +1060,7 @@ function formatPriceRange(prices) {
 }
 
 function showProductDetails(product) {
-    switchProductTracking(product.title || `Product ${product.code}`, product.code);
+    switchProductTracking(product.title || `Kalamkari Saree ${product.code}`, product.code);
 
     currentProduct = product;
     isDetailZoomed = false;
@@ -1059,7 +1083,7 @@ function showProductDetails(product) {
         delete elements.detailImage.dataset.fallbackAttempted;
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric})`;
+        elements.detailImage.alt = `Kailash Kalamkari ${product.title} Code ${product.code} (${product.fabric})`;
         elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
@@ -1115,7 +1139,7 @@ function openFullScreenImage(product) {
 
     const overlayPrimaryUrl = getProductImageUrl(product, 2000);
     elements.overlayImage.src = overlayPrimaryUrl;
-    elements.overlayImage.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Detail`;
+    elements.overlayImage.alt = `Kailash Kalamkari ${product.title} Detail`;
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlayImage.style.transformOrigin = '50% 50%';
     elements.overlayImage.style.cursor = 'zoom-in';
@@ -1165,10 +1189,10 @@ function toggleWishlist(product = currentProduct) {
     
     if (index === -1) {
         wishlist.push(product);
-        showToast(`Added to Gallery Vault!`);
+        showToast(`Added to Kalamkari Gallery Vault!`);
     } else {
         wishlist.splice(index, 1);
-        showToast(`Removed from Gallery Vault.`);
+        showToast(`Removed from Kalamkari Gallery Vault.`);
     }
     
     localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
@@ -1226,16 +1250,16 @@ function bookVideoCall(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
-    const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK NOW to inspect this hand-painted artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Special Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)} (MRP: INR ${new Intl.NumberFormat('en-IN').format(product.mrp)})\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK A LIVE VIDEO CALL to inspect this hand-painted Kalamkari saree artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)} (MRP: INR ${new Intl.NumberFormat('en-IN').format(product.mrp)})\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
-    showToast('Redirecting to WhatsApp to Book Now...');
+    showToast('Redirecting to WhatsApp to schedule Live Video Call...');
 }
 
 function shareProduct(product = currentProduct) {
     if (!product) return;
     const shareUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
-    const shareText = `Explore this authentic hand-painted Kailash Kalamkari Srikalahasthi Pen Kalamkari artwork: "${product.title}" (Code: ${product.code})`;
+    const shareText = `Explore this authentic hand-painted Kailash Kalamkari saree artwork: "${product.title}" (Code: ${product.code})`;
     
     pendingShareData = { title: product.title, text: shareText, url: shareUrl };
 
@@ -1314,7 +1338,7 @@ function setupEventListeners() {
             if (!pendingShareData) return;
             try {
                 await navigator.clipboard.writeText(pendingShareData.url);
-                showToast("Masterpiece link copied to clipboard!");
+                showToast("Kalamkari masterpiece link copied to clipboard!");
             } catch (err) {
                 showToast("Failed to copy link.");
             }
@@ -1429,7 +1453,6 @@ function updateWishlistButtonState() {
     }
 }
 
-// RECORD ACTIVE PRODUCT SESSION TIME
 function recordProductTimeSpent() {
     if (isBotVisitor() || !hasUserInteracted) return;
 
@@ -1468,7 +1491,7 @@ function recordProductTimeSpent() {
 function switchProductTracking(newTitle, newCode) {
     recordProductTimeSpent();
 
-    currentTrackedProductTitle = newTitle || 'Browsing Main Catalogue';
+    currentTrackedProductTitle = newTitle || 'Browsing Main Kalamkari Catalogue';
     currentTrackedProductCode = newCode || 'N/A';
     resetProductTimer();
 }
