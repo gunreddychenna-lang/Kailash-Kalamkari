@@ -761,14 +761,24 @@ function renderProducts(products, container, isHorizontal = false) {
                 ${product.mrp > product.price ? `<span class="mrp-price">Rs. ${formattedMrp}</span>` : ''}
                 <span class="product-price">Rs. ${formattedPrice}</span>
             </div>
-            <button class="card-book-now-btn">
-                <span>📹 BOOK NOW — VIEW LIVE</span>
-            </button>
+            <div class="card-actions-row">
+                <button class="card-video-btn">📹 VIDEO CALL</button>
+                <button class="card-buy-btn">🛍️ BUY NOW</button>
+            </div>
         `;
 
-        const cardBookBtn = info.querySelector('.card-book-now-btn');
-        if (cardBookBtn) {
-            cardBookBtn.onclick = (e) => {
+        const cardBuyBtn = info.querySelector('.card-buy-btn');
+        const cardVideoBtn = info.querySelector('.card-video-btn');
+
+        if (cardBuyBtn) {
+            cardBuyBtn.onclick = (e) => {
+                e.stopPropagation();
+                buyNow(product);
+            };
+        }
+
+        if (cardVideoBtn) {
+            cardVideoBtn.onclick = (e) => {
                 e.stopPropagation();
                 bookVideoCall(product);
             };
@@ -1246,6 +1256,16 @@ function filterAndSearchProducts() {
 
 function updateWishlistCount() {
     if (elements.wishlistCount) elements.wishlistCount.textContent = wishlist.length;
+}
+
+function buyNow(product = currentProduct) {
+    if (!product) return;
+    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
+    const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this hand-painted Kalamkari saree:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
+    
+    window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
+    showToast('Redirecting to WhatsApp to place your order...');
 }
 
 function bookVideoCall(product = currentProduct) {
