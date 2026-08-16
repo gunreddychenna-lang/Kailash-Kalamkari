@@ -922,7 +922,40 @@ body.details-mode .main-header {
     font-weight: 600;
     color: var(--color-temple-crimson);
     line-height: 1.2;
+    margin-bottom: 0.5rem;
+}
+
+/* STYLE CODE BADGE STYLING */
+.detail-code-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: var(--font-clean);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-antique-gold);
+    background: rgba(223, 168, 67, 0.08);
+    border: 1px dashed var(--color-royal-gold);
+    padding: 0.25rem 0.75rem;
+    border-radius: 3px;
     margin-bottom: 0.8rem;
+    width: fit-content;
+    letter-spacing: 0.04em;
+}
+
+.detail-code-badge .code-label {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: var(--color-roasted-espresso);
+    opacity: 0.75;
+}
+
+.detail-code-badge #detail-code {
+    font-family: var(--font-heritage);
+    font-weight: 700;
+    color: var(--color-temple-crimson);
+    font-size: 0.95rem;
 }
 
 .title-accent-line {

@@ -470,6 +470,7 @@ const elements = {
     overlayImage: document.getElementById('overlay-image'),
     overlayClose: document.getElementById('overlay-close'),
     detailTitle: document.getElementById('detail-title'),
+    detailCode: document.getElementById('detail-code'),
     detailDescription: document.getElementById('detail-description'),
     detailPrice: document.getElementById('detail-price'),
     detailMrp: document.getElementById('detail-mrp'),
@@ -1112,6 +1113,9 @@ function showProductDetails(product) {
     }
     
     if (elements.detailTitle) elements.detailTitle.textContent = product.title;
+    
+    // DISPLAY STYLE CODE
+    if (elements.detailCode) elements.detailCode.textContent = product.code || 'N/A';
     
     if (elements.detailDescription) {
         if (product.description) {
