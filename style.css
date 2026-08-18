@@ -725,6 +725,27 @@ body.details-mode .main-header {
     pointer-events: none;
 }
 
+/* STYLE CODE BADGE DISPLAYED ON PRODUCT CARD IMAGE */
+.card-code-badge {
+    position: absolute;
+    top: 0.8rem;
+    right: 0.8rem;
+    background: rgba(44, 26, 22, 0.88);
+    color: var(--color-royal-gold);
+    border: 1px solid var(--color-royal-gold);
+    font-family: var(--font-heritage);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.32rem 0.65rem;
+    border-radius: 4px;
+    z-index: 12;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    letter-spacing: 0.06em;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    pointer-events: none;
+}
+
 .sold-out-badge {
     position: absolute;
     bottom: 0.8rem;
@@ -1508,6 +1529,70 @@ body.details-mode .main-header {
     color: var(--color-temple-crimson);
 }
 
+/* TWO BUTTONS SIDE BY SIDE ON PRODUCT CARDS */
+.card-actions-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+    margin-top: 0.8rem;
+}
+
+.card-buy-btn,
+.card-video-btn {
+    width: 100%;
+    font-family: var(--font-heritage);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.65rem 0.2rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: var(--transition-premium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+/* LEFT BUTTON: VIDEO CALL */
+.card-video-btn {
+    background: linear-gradient(135deg, var(--color-temple-crimson) 0%, #741104 100%);
+    border: 1px solid var(--color-royal-gold);
+    color: var(--color-parchment);
+    box-shadow: 0 3px 10px rgba(86, 11, 2, 0.25);
+}
+
+.card-video-btn:hover {
+    background: linear-gradient(135deg, #741104 0%, var(--color-temple-crimson) 100%);
+    color: var(--color-milk-ivory);
+    border-color: #f3c77c;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(86, 11, 2, 0.4);
+}
+
+/* RIGHT BUTTON: BUY NOW */
+.card-buy-btn {
+    background: #1e7e40;
+    border: 1px solid #145e2e;
+    color: #ffffff;
+    box-shadow: 0 3px 10px rgba(30, 126, 64, 0.25);
+}
+
+.card-buy-btn:hover {
+    background: #145e2e;
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(20, 94, 46, 0.4);
+}
+
+.card-buy-btn:active,
+.card-video-btn:active {
+    transform: translateY(0);
+}
+
 @media (max-width: 1024px) {
     .product-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1626,68 +1711,4 @@ body.details-mode .main-header {
         font-size: 0.78rem;
         padding: 0.75rem 0.9rem;
     }
-}
-
-/* TWO BUTTONS SIDE BY SIDE ON PRODUCT CARDS */
-.card-actions-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    width: 100%;
-    margin-top: 0.8rem;
-}
-
-.card-buy-btn,
-.card-video-btn {
-    width: 100%;
-    font-family: var(--font-heritage);
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 0.65rem 0.2rem;
-    cursor: pointer;
-    border-radius: 3px;
-    transition: var(--transition-premium);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-
-/* LEFT BUTTON: VIDEO CALL */
-.card-video-btn {
-    background: linear-gradient(135deg, var(--color-temple-crimson) 0%, #741104 100%);
-    border: 1px solid var(--color-royal-gold);
-    color: var(--color-parchment);
-    box-shadow: 0 3px 10px rgba(86, 11, 2, 0.25);
-}
-
-.card-video-btn:hover {
-    background: linear-gradient(135deg, #741104 0%, var(--color-temple-crimson) 100%);
-    color: var(--color-milk-ivory);
-    border-color: #f3c77c;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(86, 11, 2, 0.4);
-}
-
-/* RIGHT BUTTON: BUY NOW */
-.card-buy-btn {
-    background: #1e7e40;
-    border: 1px solid #145e2e;
-    color: #ffffff;
-    box-shadow: 0 3px 10px rgba(30, 126, 64, 0.25);
-}
-
-.card-buy-btn:hover {
-    background: #145e2e;
-    color: #ffffff;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(20, 94, 46, 0.4);
-}
-
-.card-buy-btn:active,
-.card-video-btn:active {
-    transform: translateY(0);
 }

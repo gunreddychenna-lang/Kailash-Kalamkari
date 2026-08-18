@@ -1,12 +1,10 @@
-// === KAILASH KALAMKARI - CLIENT WEBPAGE LOGIC (script.js) ===
-
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
 
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
-const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
+const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbyqsz-fOGA6VbcGWUgd9MgKoiisNRV-II2QFe4nokHlM5aZcNUGuiOeN8qdunnPWzcoLA/exec';
 const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyN2Kzp3kxYP0uQjf6RU4yZ9KtL_WmV2gn3TVdj3a-e_EIEN5nWDvyrNOOiPfzBGAvc/exec'; 
 
 const CONTACT_PHONE_NUMBER = '919063374020';
@@ -107,7 +105,7 @@ function showToast(message) {
     }, 3200);
 }
 
-// ENHANCED GOOGLE DRIVE FILE ID EXTRACTION
+// GOOGLE DRIVE FILE ID EXTRACTION
 function getGoogleDriveId(product) {
     if (!product) return null;
     
@@ -131,7 +129,7 @@ function getGoogleDriveId(product) {
     return null;
 }
 
-// FULL ULTRA-HD IMAGE GENERATOR (FETCHES 2000px CRISP MASTER IMAGE WITH q=92 HD QUALITY)
+// ULTRA-HD IMAGE GENERATOR
 function getProductImageUrl(product, width = 1200) {
     if (!product) return DEFAULT_IMAGE;
     
@@ -156,7 +154,7 @@ function getProductImageUrl(product, width = 1200) {
     return DEFAULT_IMAGE;
 }
 
-// FALLBACK HANDLER FOR HIGH-RES GOOGLE DRIVE THUMBNAILS & DIRECT CDN
+// FALLBACK HANDLER FOR IMAGES
 function setupImageFallback(imgElement, product, width = 1200) {
     const fileId = getGoogleDriveId(product);
     if (!fileId) return;
@@ -177,7 +175,7 @@ function setupImageFallback(imgElement, product, width = 1200) {
 
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
-    const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Pen Kalamkari Saree | Kailash Kalamkari`;
+    const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Pen Kalamkari | Kailash Kalamkari`;
     const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) with natural organic mineral dyes. Code: ${product.code}. Offer Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari master artisans in Srikalahasti.`;
     const imageUrl = getProductImageUrl(product, 2000);
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
@@ -335,26 +333,12 @@ function detectBrowser() {
     return 'Other Browser';
 }
 
+// CORS-SAFE GEOLOCATION PROVIDER
 async function getGeoLocation() {
     try {
-        const res1 = await fetch('https://freeipapi.com/api/json');
+        const res1 = await fetch('https://ipwho.is/', { mode: 'cors' });
         if (res1.ok) {
             const data = await res1.json();
-            if (data && data.cityName && data.cityName !== 'Unknown') {
-                return {
-                    city: data.cityName || 'Unknown',
-                    region: data.regionName || 'Unknown',
-                    country: data.countryName || 'Unknown',
-                    ip: data.ipAddress || 'Anonymized'
-                };
-            }
-        }
-    } catch (e) {}
-
-    try {
-        const res2 = await fetch('https://ipwho.is/');
-        if (res2.ok) {
-            const data = await res2.json();
             if (data && data.success && data.city) {
                 return {
                     city: data.city || 'Unknown',
@@ -367,9 +351,9 @@ async function getGeoLocation() {
     } catch (e) {}
 
     try {
-        const res3 = await fetch('https://ipapi.co/json/');
-        if (res3.ok) {
-            const data = await res3.json();
+        const res2 = await fetch('https://ipapi.co/json/', { mode: 'cors' });
+        if (res2.ok) {
+            const data = await res2.json();
             if (data && data.city) {
                 return {
                     city: data.city || 'Unknown',
@@ -605,7 +589,6 @@ async function fetchProducts() {
             }
 
             const description = String(getFieldValue(item, ['description', 'product description', 'desc'])).trim();
-
             const customTitle = String(getFieldValue(item, ['product name', 'saree name', 'dupatta name', 'item name', 'name', 'title'])).trim();
 
             let title = customTitle;
@@ -636,7 +619,7 @@ async function fetchProducts() {
                 price: sellingPrice, mrp: rawMrp,
                 qty, imageLink, thumbnail, imageId, description
             };
-        }).filter(item => item.code && item.price > 0);
+        }).filter(item => item.code && item.price > 0 && !item.code.toLowerCase().includes('desktop') && (item.imageId || item.imageLink));
 
         allProducts = sortProductsByPrice(allProducts);
         if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
@@ -662,6 +645,7 @@ async function fetchProducts() {
     }
 }
 
+// RENDER PRODUCTS GRID WITH STYLE CODE BADGE ON IMAGE
 function renderProducts(products, container, isHorizontal = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -709,11 +693,20 @@ function renderProducts(products, container, isHorizontal = false) {
         setupImageFallback(img, product, 1200);
         imageWrapper.appendChild(img);
 
+        // 10% OFF DISCOUNT BADGE (Top-Left)
         if (discountPct > 0) {
             const discountBadge = document.createElement('span');
             discountBadge.className = 'card-discount-badge';
             discountBadge.textContent = `${discountPct}% OFF`;
             imageWrapper.appendChild(discountBadge);
+        }
+
+        // STYLE CODE BADGE ON IMAGE (Top-Right)
+        if (product.code) {
+            const codeBadge = document.createElement('span');
+            codeBadge.className = 'card-code-badge';
+            codeBadge.textContent = product.code;
+            imageWrapper.appendChild(codeBadge);
         }
 
         if (product.qty <= 0) {
@@ -893,7 +886,6 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
         const key = fabric.toLowerCase().replace(/\s+/g, ' ').trim();
 
         if (!fabricMap.has(key)) {
-            const deptConfig = DEPARTMENTS.find(d => d.key === targetDept) || { label: 'Kalamkari Sarees' };
             const isPluralFabric = fabric.toLowerCase().includes('saree') || fabric.toLowerCase().includes('sari') || fabric.toLowerCase().includes('dupatta');
             
             fabricMap.set(key, {
@@ -971,6 +963,7 @@ function showView(viewName) {
     }
 }
 
+// RENDER FILTER BUTTONS (CLEAN CATEGORY NAMES WITHOUT EXTRA KALAMKARI)
 function renderFilterButtons() {
     if (!elements.filtersContainer) return;
     const departmentProducts = getDepartmentProducts();
@@ -1003,7 +996,7 @@ function renderFilterButtons() {
         button.className = 'filter-btn';
         button.dataset.filter = key;
         button.innerHTML = `
-            <span class="filter-title">${entry.label.toUpperCase()} KALAMKARI</span>
+            <span class="filter-title">${entry.label.toUpperCase()}</span>
             <span class="filter-price">${priceText}</span>
         `;
         elements.filtersContainer.appendChild(button);
@@ -1073,7 +1066,7 @@ function formatPriceRange(prices) {
 }
 
 function showProductDetails(product) {
-    switchProductTracking(product.title || `Kalamkari Saree ${product.code}`, product.code);
+    switchProductTracking(product.title || `Kalamkari ${product.code}`, product.code);
 
     currentProduct = product;
     isDetailZoomed = false;
@@ -1096,7 +1089,7 @@ function showProductDetails(product) {
         delete elements.detailImage.dataset.fallbackAttempted;
         const detailPrimaryUrl = getProductImageUrl(product, 2000);
         elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.alt = `Kailash Kalamkari Hand-Painted Srikalahasti Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric} Pure Silk Saree)`;
+        elements.detailImage.alt = `Kailash Kalamkari Hand-Painted Srikalahasti Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric})`;
         elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
@@ -1266,7 +1259,7 @@ function buyNow(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
-    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this hand-painted Kalamkari saree:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
     showToast('Redirecting to WhatsApp to place your order...');
@@ -1285,7 +1278,7 @@ function bookVideoCall(product = currentProduct) {
 function shareProduct(product = currentProduct) {
     if (!product) return;
     const shareUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
-    const shareText = `Explore this authentic hand-painted Kailash Kalamkari saree artwork: "${product.title}" (Code: ${product.code})`;
+    const shareText = `Explore this authentic hand-painted Kailash Kalamkari artwork: "${product.title}" (Code: ${product.code})`;
     
     pendingShareData = { title: product.title, text: shareText, url: shareUrl };
 
