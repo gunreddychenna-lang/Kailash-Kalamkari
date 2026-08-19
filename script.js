@@ -1,9 +1,16 @@
+// =========================================================================
+// KAILASH KALAMKARI E-COMMERCE ENGINE
+// =========================================================================
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
-// YOUR EXACT PUBLISHED GOOGLE SHEET CSV ENDPOINTS (WITH AUTOMATIC FALLBACK)
+// YOUR IMAGEKIT PRODUCTION CDN ENDPOINT
+const IMAGEKIT_ENDPOINT = 'https://ik.imagekit.io/phuzcbamt';
+
+// GOOGLE APPS SCRIPT WEB APP JSON API (Primary) & CSV URL (Backup Fallback)
+const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv';
 const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv';
 
@@ -60,7 +67,8 @@ const elements = {
     wishlistBtnText: document.getElementById('wishlist-btn-text'),
     wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
     shareBtn: document.getElementById('share-btn'),
-    videoCallBtn: document.getElementById('video-call-btn')
+    videoCallBtn: document.getElementById('video-call-btn'),
+    detailBuyNowBtn: document.getElementById('detail-buy-now-btn')
 };
 
 function showToast(message) {
@@ -73,7 +81,7 @@ function showToast(message) {
     }, 3000);
 }
 
-// SMART GOOGLE DRIVE FILE ID EXTRACTION
+// 1. EXTRACT DRIVE FILE ID (Supports 25-50 char raw ID or any Google Drive URL format)
 function extractDriveFileId(str) {
     if (!str || typeof str !== 'string') return null;
     const trimmed = str.trim();
@@ -82,30 +90,41 @@ function extractDriveFileId(str) {
     return match && match[1] ? match[1] : null;
 }
 
-// ULTRA-FAST DIRECT IMAGE GENERATOR
-function getProductImageUrl(product, width = 1200) {
+// 2. ULTRA-FAST IMAGE GENERATOR (ImageKit CDN with auto-WebP conversion)
+function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
     
     const fileId = extractDriveFileId(product.imageId) || 
+                   extractDriveFileId(product['File ID']) ||
                    extractDriveFileId(product.imageLink) || 
+                   extractDriveFileId(product['Drive Link']) ||
+                   extractDriveFileId(product['Thumbnail Link']) ||
                    extractDriveFileId(product.thumbnail);
 
     if (fileId) {
+        if (IMAGEKIT_ENDPOINT) {
+            return `${IMAGEKIT_ENDPOINT}/tr:w-${width},f-auto,q-80/uc?export=view&id=${fileId}`;
+        }
         return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
     }
     
-    const rawUrl = (product.imageLink || product.thumbnail || '').trim();
-    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:') || rawUrl.startsWith('images/')) {
+    const rawUrl = (product.imageLink || product['Drive Link'] || product.thumbnail || '').trim();
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+        if (IMAGEKIT_ENDPOINT) {
+            return `${IMAGEKIT_ENDPOINT}/tr:w-${width},f-auto,q-80/${rawUrl}`;
+        }
         return rawUrl;
     }
 
     return DEFAULT_IMAGE;
 }
 
-// 3-TIER ERROR FALLBACK FOR IMAGES
-function setupImageFallback(imgElement, product, width = 1200) {
+// 3. MULTI-TIER IMAGE FALLBACK
+function setupImageFallback(imgElement, product, width = 800) {
     const fileId = extractDriveFileId(product.imageId) || 
+                   extractDriveFileId(product['File ID']) ||
                    extractDriveFileId(product.imageLink) || 
+                   extractDriveFileId(product['Drive Link']) ||
                    extractDriveFileId(product.thumbnail);
 
     if (!fileId) return;
@@ -113,11 +132,14 @@ function setupImageFallback(imgElement, product, width = 1200) {
     imgElement.onerror = () => {
         if (!imgElement.dataset.fallbackAttempted) {
             imgElement.dataset.fallbackAttempted = "1";
-            imgElement.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
+            // Fallback 1: Google CDN direct
+            imgElement.src = `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
         } else if (imgElement.dataset.fallbackAttempted === "1") {
             imgElement.dataset.fallbackAttempted = "2";
+            // Fallback 2: Direct Drive View
             imgElement.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
         } else {
+            // Final Fallback: Clean Placeholder
             imgElement.src = DEFAULT_IMAGE;
         }
     };
@@ -286,43 +308,39 @@ function goBack() {
     }
 }
 
-async function init() {
-    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-    updateWishlistCount();
-    setupEventListeners();
-
-    await fetchProducts();
-
-    const params = new URLSearchParams(window.location.search);
-    const initialDept = normalizeDepartment(params.get('department')) || currentDepartment;
-    const initialFabric = params.get('fabric') || 'all';
-    const hash = window.location.hash;
-
-    navigateToState(initialDept, initialFabric, hash, false);
-    handlePopState(); 
-    isInitialLoad = false;
-    hideIntroAnimation();
-}
-
-// DIRECT GOOGLE SHEETS CSV FETCHING & PARSING VIA PAPAPARSE
+// DIRECT DATA PARSER SUPPORTING APPS SCRIPT JSON & GOOGLE SHEETS CSV
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block'; 
 
-        let csvText = '';
+        let rawData = [];
+
+        // 1. Try Apps Script Web App JSON API
         try {
-            const response = await fetch(PRIMARY_CSV_URL);
-            if (!response.ok) throw new Error(`Primary failed with status ${response.status}`);
-            csvText = await response.text();
+            const apiRes = await fetch(APPS_SCRIPT_API_URL, { cache: 'no-cache' });
+            if (apiRes.ok) {
+                rawData = await apiRes.json();
+            }
         } catch (e) {
-            console.warn('Primary CSV load failed, trying backup endpoint...', e);
-            const backupResp = await fetch(BACKUP_CSV_URL);
-            if (!backupResp.ok) throw new Error(`Backup failed with status ${backupResp.status}`);
-            csvText = await backupResp.text();
+            console.warn('Apps Script JSON API load failed, trying published CSV...', e);
         }
 
-        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-        const rawData = parsed.data || [];
+        // 2. If API returns empty or fails, fallback to published CSV
+        if (!rawData || !rawData.length) {
+            let csvText = '';
+            try {
+                const response = await fetch(PRIMARY_CSV_URL);
+                if (!response.ok) throw new Error(`Primary failed with status ${response.status}`);
+                csvText = await response.text();
+            } catch (e) {
+                const backupResp = await fetch(BACKUP_CSV_URL);
+                if (!backupResp.ok) throw new Error(`Backup failed with status ${backupResp.status}`);
+                csvText = await backupResp.text();
+            }
+
+            const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+            rawData = parsed.data || [];
+        }
         
         const getFieldValue = (item, keys) => {
             const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -352,15 +370,15 @@ async function fetchProducts() {
                 return isNaN(n) ? 0 : n;
             }
 
-            const code = String(getFieldValue(item, ['code', 'style code', 'stylecode', 'item code', 'barcode', 'sku'])).trim();
+            const code = String(getFieldValue(item, ['style code', 'stylecode', 'code', 'item code', 'barcode', 'sku'])).trim();
             const fabric = String(getFieldValue(item, ['fabric', 'material', 'fabric name']) || 'Pure Silk').trim();
             const category = String(getFieldValue(item, ['category', 'type']) || 'Uncategorized').trim();
             const department = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
             const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(fabric, category, code) || 'saree';
             
-            const imageLink = String(getFieldValue(item, ['image link', 'imagelink', 'drive link', 'image', 'photo link', 'image url', 'photo'])).trim();
+            const imageLink = String(getFieldValue(item, ['thumbnail link', 'drive link', 'image link', 'imagelink', 'image', 'photo link', 'image url', 'photo'])).trim();
             const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link', 'thumb'])).trim() || imageLink;
-            const imageId = String(getFieldValue(item, ['image id', 'imageid', 'file id', 'drive id'])).trim();
+            const imageId = String(getFieldValue(item, ['file id', 'fileid', 'image id', 'imageid', 'drive id'])).trim();
 
             let rawQty = getFieldValue(item, ['qty', 'quantity', 'stock', 'available', 'count']);
             let qty = rawQty !== '' ? Number(rawQty) : 1;
@@ -370,7 +388,11 @@ async function fetchProducts() {
             let mrpFromSheet = parsePrice(getFieldValue(item, ['mrp', 'm.r.p', 'original price', 'mrp price', 'list price']));
 
             let rawMrp = mrpFromSheet || sellingPrice;
-            if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
+            if (sellingPrice === 0) {
+                // If price not entered, default to standard tier
+                sellingPrice = 14500;
+                rawMrp = 16000;
+            } else if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
                 if (rawMrp <= sellingPrice) rawMrp = sellingPrice;
                 sellingPrice = Math.round(rawMrp * (1 - GLOBAL_DISCOUNT_PERCENTAGE / 100));
             }
@@ -406,7 +428,7 @@ async function fetchProducts() {
                 price: sellingPrice, mrp: rawMrp,
                 qty, imageLink, thumbnail, imageId, description
             };
-        }).filter(item => item.code && item.price > 0 && (item.imageId || item.imageLink || item.thumbnail));
+        }).filter(item => item.code && (item.imageId || item.imageLink || item.thumbnail));
 
         allProducts = sortProductsByPrice(allProducts);
         if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
@@ -480,10 +502,10 @@ function renderProducts(products, container, isHorizontal = false) {
         img.title = `Kailash Kalamkari Srikalahasti — ${product.title}`;
         img.loading = 'lazy';
         
-        const primaryUrl = getProductImageUrl(product, 1200);
+        const primaryUrl = getProductImageUrl(product, 800);
         img.src = primaryUrl;
 
-        setupImageFallback(img, product, 1200);
+        setupImageFallback(img, product, 800);
         imageWrapper.appendChild(img);
 
         // 10% OFF DISCOUNT BADGE (Top-Left)
@@ -942,6 +964,7 @@ function filterAndSearchProducts() {
         const matchesSearch = !searchTerm ? true : (
             (product.code && product.code.toLowerCase().includes(searchTerm)) ||
             (product.fabric && product.fabric.toLowerCase().includes(searchTerm)) ||
+            (product.title && product.title.toLowerCase().includes(searchTerm)) ||
             (product.description && product.description.toLowerCase().includes(searchTerm))
         );
             
@@ -963,7 +986,7 @@ function updateWishlistCount() {
 
 function buyNow(product = currentProduct) {
     if (!product) return;
-    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
+    const visitorId = localStorage.getItem('crm_visitor_id') || localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
     const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
     
@@ -972,7 +995,7 @@ function buyNow(product = currentProduct) {
 
 function bookVideoCall(product = currentProduct) {
     if (!product) return;
-    const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
+    const visitorId = localStorage.getItem('crm_visitor_id') || localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
     const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK A LIVE VIDEO CALL to inspect this hand-painted Kalamkari saree artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
     
@@ -1011,6 +1034,13 @@ function setupEventListeners() {
     if (elements.addToWishlistBtn) elements.addToWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
     if (elements.shareBtn) elements.shareBtn.addEventListener('click', () => shareProduct(currentProduct));
     if (elements.videoCallBtn) elements.videoCallBtn.addEventListener('click', () => bookVideoCall(currentProduct));
+    if (elements.detailBuyNowBtn) elements.detailBuyNowBtn.addEventListener('click', () => buyNow(currentProduct));
+
+    if (elements.searchInput) {
+        elements.searchInput.addEventListener('input', () => {
+            filterAndSearchProducts();
+        });
+    }
 
     const floatingWishlistBtn = document.getElementById('detail-floating-wishlist-btn');
     if (floatingWishlistBtn) floatingWishlistBtn.addEventListener('click', () => toggleWishlist(currentProduct));
@@ -1087,6 +1117,24 @@ function updateWishlistButtonState() {
     elements.addToWishlistBtn.classList.toggle('active', isInWishlist);
     if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = isInWishlist ? 'In Gallery Vault' : 'Add to Gallery Vault';
     if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = isInWishlist ? '♥' : '❤️';
+}
+
+async function init() {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    updateWishlistCount();
+    setupEventListeners();
+
+    await fetchProducts();
+
+    const params = new URLSearchParams(window.location.search);
+    const initialDept = normalizeDepartment(params.get('department')) || currentDepartment;
+    const initialFabric = params.get('fabric') || 'all';
+    const hash = window.location.hash;
+
+    navigateToState(initialDept, initialFabric, hash, false);
+    handlePopState(); 
+    isInitialLoad = false;
+    hideIntroAnimation();
 }
 
 document.addEventListener('DOMContentLoaded', init);

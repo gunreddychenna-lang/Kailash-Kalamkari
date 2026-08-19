@@ -53,7 +53,7 @@
     <!-- PAPAPARSE HIGH-SPEED CSV ENGINE -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-    <!-- STRUCTURED DATA 1: ORGANIZATION -->
+    <!-- STRUCTURED DATA: ORGANIZATION -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -83,90 +83,6 @@
       "sameAs": [
         "https://www.instagram.com/kailash_kalamkari_1984/?hl=en",
         "https://www.facebook.com/p/Kailash-Kalamkari-100069955411990/"
-      ]
-    }
-    </script>
-
-    <!-- STRUCTURED DATA 2: WEBSITE -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "@id": "https://www.kailash-kalamkari.com/#website",
-      "url": "https://www.kailash-kalamkari.com/",
-      "name": "Kailash Kalamkari",
-      "publisher": {
-        "@id": "https://www.kailash-kalamkari.com/#organization"
-      }
-    }
-    </script>
-
-    <!-- STRUCTURED DATA 3: BREADCRUMB -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Home",
-          "item": "https://www.kailash-kalamkari.com/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Kalamkari Sarees",
-          "item": "https://www.kailash-kalamkari.com/?department=saree"
-        },
-        {
-          "@type": "ListItem",
-          "position": 3,
-          "name": "Kalamkari Dupattas",
-          "item": "https://www.kailash-kalamkari.com/?department=dupatta"
-        }
-      ]
-    }
-    </script>
-
-    <!-- STRUCTURED DATA 4: FAQ SCHEMA -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "What is authentic Srikalahasti Pen Kalamkari?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Srikalahasti Pen Kalamkari is an ancient Indian handloom art form where intricate mythology, floral vines, and divine motifs are hand-drawn directly onto pure silk using organic bamboo pens (kalam) and 100% natural mineral dyes."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Are Kailash Kalamkari sarees hand-painted or printed?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Every saree at Kailash Kalamkari is 100% hand-painted freehand by master artisans in Srikalahasti, Andhra Pradesh. We do not manufacture screen-printed or digital-printed imitations."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Can I view the Kalamkari saree live before purchasing?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes! You can click the 'Book Now' button on any saree to schedule a live video call with our workshop to inspect the hand-painted artwork and color vibrancy in real-time."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Do you ship Kalamkari sarees internationally?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes, we offer express worldwide shipping to the USA, UK, Canada, Australia, UAE, Europe, and free shipping across India."
-          }
-        }
       ]
     }
     </script>
@@ -258,7 +174,7 @@
         </div>
     </header>
 
-    <!-- NAVIGATION & FILTERING -->
+    <!-- NAVIGATION, SEARCH & FILTERING -->
     <div class="sticky-nav-container">
         <section class="department-bar-container" aria-label="Product Categories">
             <div class="department-bar">
@@ -273,6 +189,14 @@
                 </button>
             </div>
         </section>
+
+        <!-- SEARCH BAR CONTAINER -->
+        <div class="search-bar-wrapper">
+            <div class="search-input-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-input" placeholder="Search kalamkari sarees by style code, fabric or motif..." autocomplete="off">
+            </div>
+        </div>
 
         <section class="filters-outer-container" aria-label="Fabric Filters">
             <div id="category-filters" class="category-filters"></div>
@@ -334,10 +258,14 @@
                     </div>
 
                     <div class="action-buttons">
-                        <div class="primary-actions-row">
-                            <button id="video-call-btn" class="book-now-btn">
+                        <div class="primary-actions-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+                            <button id="detail-buy-now-btn" class="card-buy-btn" style="min-height: 52px; font-size: 0.88rem;">
+                                <span class="btn-icon">🛍️</span>
+                                <span>Buy Now on WhatsApp</span>
+                            </button>
+                            <button id="video-call-btn" class="book-now-btn" style="min-height: 52px; font-size: 0.88rem;">
                                 <span class="btn-icon">📹</span>
-                                <span>Book Now — View Live on Video Call</span>
+                                <span>Live Video Call</span>
                             </button>
                         </div>
                         <div class="secondary-actions-row">
@@ -349,7 +277,7 @@
                                 <span class="btn-icon">
                                     <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
                                 </span>
-                                <span id="share-btn-text">Share Kalamkari Saree</span>
+                                <span id="share-btn-text">Share Artwork</span>
                             </button>
                         </div>
                     </div>
@@ -432,39 +360,6 @@
         </div>
     </div>
 
-    <!-- SEO HERITAGE SECTION -->
-    <div style="max-width: 1200px; margin: 3rem auto 2rem auto; padding: 0 1.5rem;">
-        <section class="seo-heritage-section">
-            <h2>Authentic Srikalahasti (Sreekalahasthi) Hand-Painted Pen Kalamkari Sarees & Dupattas</h2>
-            <p>
-                Welcome to <strong>Kailash Kalamkari</strong> — home of original, 100% hand-painted Srikalahasti (Sreekalahasthi) Pen Kalamkari pure silk sarees, dupattas, and fabrics. Located in the sacred temple town of Srikalahasti in Andhra Pradesh, India, our workshop has been preserving the ancient art of visual storytelling since 1984 under master craftsmen.
-            </p>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; text-align: left;">
-                <div style="background: var(--color-milk-ivory); padding: 1.2rem; border: 1px solid var(--color-gold-muted); border-radius: 4px;">
-                    <h3 style="font-family: var(--font-heritage); color: var(--color-temple-crimson); font-size: 1.05rem; margin-bottom: 0.5rem;">100% Freehand Pen Kalamkari Art</h3>
-                    <p style="font-size: 0.85rem; line-height: 1.55; color: var(--color-roasted-espresso);">
-                        Unlike machine-printed or block-printed imitations, every motif on our Kalamkari sarees is painted completely by hand using organic bamboo pens (kalam) with zero synthetic chemical prints.
-                    </p>
-                </div>
-                
-                <div style="background: var(--color-milk-ivory); padding: 1.2rem; border: 1px solid var(--color-gold-muted); border-radius: 4px;">
-                    <h3 style="font-family: var(--font-heritage); color: var(--color-temple-crimson); font-size: 1.05rem; margin-bottom: 0.5rem;">Natural Organic Mineral Dyes</h3>
-                    <p style="font-size: 0.85rem; line-height: 1.55; color: var(--color-roasted-espresso);">
-                        Our colors are extracted naturally from earth minerals, pomegranate rinds, myrobalan seeds, and indigo roots, washed multiple times in the sacred Swarnamukhi river waters.
-                    </p>
-                </div>
-                
-                <div style="background: var(--color-milk-ivory); padding: 1.2rem; border: 1px solid var(--color-gold-muted); border-radius: 4px;">
-                    <h3 style="font-family: var(--font-heritage); color: var(--color-temple-crimson); font-size: 1.05rem; margin-bottom: 0.5rem;">Pure Handloom Silks</h3>
-                    <p style="font-size: 0.85rem; line-height: 1.55; color: var(--color-roasted-espresso);">
-                        We paint on certified pure Kanchipuram silk, Tussar silk, Organza, Gaduwal, and Chanderi fabrics, ensuring heirloom-quality texture, luster, and longevity.
-                    </p>
-                </div>
-            </div>
-        </section>
-    </div>
-
     <!-- FOOTER -->
     <footer class="traditional-footer">
         <div class="footer-temple-border"></div>
@@ -506,6 +401,8 @@
         </div>
     </footer>
 
+    <!-- VISITOR ENGAGEMENT TRACKER SCRIPT -->
+    <script src="tracker.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
