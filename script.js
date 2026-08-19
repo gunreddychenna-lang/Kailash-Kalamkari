@@ -38,7 +38,8 @@ let pendingShareData = null;
 const views = {
     catalogue: document.getElementById('catalogue-view'),
     details: document.getElementById('product-details-view'),
-    wishlist: document.getElementById('wishlist-view')
+    wishlist: document.getElementById('wishlist-view'),
+    policy: document.getElementById('return-policy-view')
 };
 
 const elements = {
@@ -51,6 +52,7 @@ const elements = {
     viewWishlistBtn: document.getElementById('wishlist-trigger'),
     backToCatalogueBtn: document.getElementById('back-to-catalogue'),
     backFromWishlistBtn: document.getElementById('back-from-wishlist'),
+    backFromPolicyBtn: document.getElementById('back-from-policy'),
     emptyWishlistMsg: document.getElementById('wishlist-empty'),
     
     detailImage: document.getElementById('detail-image'),
@@ -81,7 +83,7 @@ function showToast(message) {
     }, 3000);
 }
 
-// 1. EXTRACT DRIVE FILE ID (Supports 25-50 char raw ID or any Google Drive URL format)
+// 1. EXTRACT DRIVE FILE ID
 function extractDriveFileId(str) {
     if (!str || typeof str !== 'string') return null;
     const trimmed = str.trim();
@@ -90,7 +92,7 @@ function extractDriveFileId(str) {
     return match && match[1] ? match[1] : null;
 }
 
-// 2. ULTRA-FAST IMAGE GENERATOR (ImageKit CDN with auto-WebP conversion)
+// 2. ULTRA-FAST IMAGE GENERATOR
 function getProductImageUrl(product, width = 800) {
     if (!product) return DEFAULT_IMAGE;
     
@@ -305,15 +307,13 @@ function goBack() {
     }
 }
 
-// DIRECT DATA PARSER WITH 3-MINUTE SMART CACHE
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block'; 
 
-        // 1. IN-BROWSER CACHE (Valid for 3 Minutes to protect Google Sheets)
         const CACHE_KEY = 'kalamkari_catalog_cache';
         const CACHE_TIME_KEY = 'kalamkari_catalog_time';
-        const CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+        const CACHE_TTL = 3 * 60 * 1000;
 
         const cachedData = sessionStorage.getItem(CACHE_KEY);
         const cachedTime = sessionStorage.getItem(CACHE_TIME_KEY);
@@ -329,9 +329,7 @@ async function fetchProducts() {
             }
         }
 
-        // 2. FETCH FROM GOOGLE IF NO VALID CACHE EXISTS
         if (!rawData || !rawData.length) {
-            // A. Try Apps Script Web App JSON API
             try {
                 const apiRes = await fetch(APPS_SCRIPT_API_URL, { cache: 'no-cache' });
                 if (apiRes.ok) {
@@ -341,7 +339,6 @@ async function fetchProducts() {
                 console.warn('Apps Script JSON API load failed, trying published CSV...', e);
             }
 
-            // B. Fallback to published Google Sheets CSV
             if (!rawData || !rawData.length) {
                 let csvText = '';
                 try {
@@ -358,7 +355,6 @@ async function fetchProducts() {
                 rawData = parsed.data || [];
             }
 
-            // C. Save fetched data to cache
             if (rawData && rawData.length > 0) {
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
                 sessionStorage.setItem(CACHE_TIME_KEY, String(Date.now()));
@@ -482,7 +478,6 @@ async function fetchProducts() {
     }
 }
 
-// RENDER PRODUCTS GRID WITH STYLE CODE BADGE ON IMAGE
 function renderProducts(products, container, isHorizontal = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -530,7 +525,6 @@ function renderProducts(products, container, isHorizontal = false) {
         setupImageFallback(img, product, 800);
         imageWrapper.appendChild(img);
 
-        // 10% OFF DISCOUNT BADGE (Top-Left)
         if (discountPct > 0) {
             const discountBadge = document.createElement('span');
             discountBadge.className = 'card-discount-badge';
@@ -538,7 +532,6 @@ function renderProducts(products, container, isHorizontal = false) {
             imageWrapper.appendChild(discountBadge);
         }
 
-        // STYLE CODE BADGE ON IMAGE (Top-Right)
         if (product.code) {
             const codeBadge = document.createElement('span');
             codeBadge.className = 'card-code-badge';
@@ -788,6 +781,9 @@ function showView(viewName) {
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
             document.title = "Kalamkari Sarees — Hand-Painted Srikalahasti Pen Kalamkari Silk Sarees | Kailash Kalamkari";
+        } else if (viewName === 'policy') {
+            document.title = "Return Policy — Kailash Kalamkari Srikalahasti";
+            window.scrollTo(0, 0);
         } else {
             window.scrollTo(0, 0);
         }
@@ -1042,6 +1038,7 @@ function shareProduct(product = currentProduct) {
 function setupEventListeners() {
     if (elements.backToCatalogueBtn) elements.backToCatalogueBtn.addEventListener('click', goBack);
     if (elements.backFromWishlistBtn) elements.backFromWishlistBtn.addEventListener('click', goBack);
+    if (elements.backFromPolicyBtn) elements.backFromPolicyBtn.addEventListener('click', goBack);
     
     if (elements.viewWishlistBtn) {
         elements.viewWishlistBtn.addEventListener('click', (e) => {
@@ -1050,6 +1047,16 @@ function setupEventListeners() {
             window.location.hash = '#wishlist';
             renderWishlist();
             showView('wishlist');
+        });
+    }
+
+    const footerPolicyLink = document.getElementById('footer-policy-link');
+    if (footerPolicyLink) {
+        footerPolicyLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            sessionPushedStates++;
+            window.location.hash = '#return-policy';
+            showView('policy');
         });
     }
     
@@ -1116,7 +1123,9 @@ function handlePopState() {
     currentDepartment = departmentParam;
     updateDepartmentUI();
 
-    if (hash.includes('kalamkari') || hash.startsWith('#product/')) {
+    if (hash === '#return-policy' || hash === '#policy') {
+        showView('policy');
+    } else if (hash.includes('kalamkari') || hash.startsWith('#product/')) {
         const codeMatch = hash.match(/(?:[A-Za-z0-9_-]+-)?([A-Za-z0-9]+)$/);
         const productCode = codeMatch ? codeMatch[1] : hash.split('/').pop();
         const product = allProducts.find(p => p.code === productCode);

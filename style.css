@@ -1770,3 +1770,71 @@ body.details-mode .main-header {
     -ms-user-select: text !important;
     user-select: text !important;
 }
+/* RETURN POLICY CARD STYLES */
+.policy-card {
+    background: var(--color-milk-ivory);
+    border: 1px solid transparent;
+    border-image: linear-gradient(135deg, var(--color-antique-gold), var(--color-royal-gold), #fffbfa, var(--color-royal-gold), var(--color-antique-gold)) 1;
+    padding: 3rem 2.5rem;
+    position: relative;
+    box-shadow: var(--shadow-luxury);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.policy-card::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 1px dashed rgba(223, 168, 67, 0.25);
+    pointer-events: none;
+}
+
+.policy-content {
+    line-height: 1.8;
+    color: var(--color-roasted-espresso);
+    font-size: 0.95rem;
+}
+
+.policy-lead {
+    font-size: 1.1rem;
+    color: var(--color-temple-crimson);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.policy-box {
+    background: var(--color-parchment);
+    border-left: 4px solid var(--color-temple-crimson);
+    border-right: 1px solid var(--color-gold-muted);
+    border-top: 1px solid var(--color-gold-muted);
+    border-bottom: 1px solid var(--color-gold-muted);
+    padding: 1.5rem;
+    margin: 2rem 0;
+    box-shadow: 0 4px 12px rgba(86, 11, 2, 0.04);
+}
+
+.policy-box h3 {
+    font-family: var(--font-heritage);
+    color: var(--color-temple-crimson);
+    font-size: 1.15rem;
+    margin-bottom: 0.5rem;
+}
+
+.policy-content h3 {
+    font-family: var(--font-heritage);
+    color: var(--color-temple-crimson);
+    font-size: 1.1rem;
+    margin: 1.8rem 0 0.5rem 0;
+}
+
+.footer-policy-link {
+    color: var(--color-royal-gold);
+    text-decoration: underline;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.footer-policy-link:hover {
+    color: var(--color-milk-ivory);
+}
