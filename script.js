@@ -1,11 +1,11 @@
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
-
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
-const CATALOG_API_URL = 'https://script.google.com/macros/s/AKfycbyqsz-fOGA6VbcGWUgd9MgKoiisNRV-II2QFe4nokHlM5aZcNUGuiOeN8qdunnPWzcoLA/exec';
-const ANALYTICS_API_URL = 'https://script.google.com/macros/s/AKfycbyN2Kzp3kxYP0uQjf6RU4yZ9KtL_WmV2gn3TVdj3a-e_EIEN5nWDvyrNOOiPfzBGAvc/exec'; 
+// YOUR EXACT PUBLISHED GOOGLE SHEET CSV ENDPOINTS (WITH AUTOMATIC FALLBACK)
+const PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv';
+const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv';
 
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -23,77 +23,45 @@ let wishlist = JSON.parse(localStorage.getItem('kalamkariWishlist')) || [];
 let recentlyViewed = JSON.parse(localStorage.getItem('kalamkariRecentlyViewed')) || [];
 let currentProduct = null;
 let currentDepartment = getInitialDepartment();
-let isDetailZoomed = false;
 let isOverlayZoomed = false;
 let isInitialLoad = true; 
 let sessionPushedStates = 0;
 let pendingShareData = null;
 
-let currentTrackedProductCode = 'N/A';
-let currentTrackedProductTitle = 'Browsing Main Kalamkari Catalogue';
-let hasUserInteracted = false;
+const views = {
+    catalogue: document.getElementById('catalogue-view'),
+    details: document.getElementById('product-details-view'),
+    wishlist: document.getElementById('wishlist-view')
+};
 
-['click', 'touchstart', 'scroll', 'mousemove'].forEach(event => {
-    window.addEventListener(event, () => { hasUserInteracted = true; }, { once: true });
-});
-
-let activeTimeSpentMs = 0;
-let lastActiveStartTime = Date.now();
-let isTabVisible = !document.hidden;
-
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        if (isTabVisible) {
-            activeTimeSpentMs += (Date.now() - lastActiveStartTime);
-            isTabVisible = false;
-        }
-    } else {
-        if (!isTabVisible) {
-            lastActiveStartTime = Date.now();
-            isTabVisible = true;
-        }
-    }
-});
-
-function getActiveDurationSeconds() {
-    let totalMs = activeTimeSpentMs;
-    if (isTabVisible) {
-        totalMs += (Date.now() - lastActiveStartTime);
-    }
-    return Math.round(totalMs / 1000);
-}
-
-function resetProductTimer() {
-    activeTimeSpentMs = 0;
-    lastActiveStartTime = Date.now();
-    isTabVisible = !document.hidden;
-}
-
-function isBotVisitor() {
-    if (navigator.webdriver) return true;
-    if (window.innerWidth === 0 || window.innerHeight === 0) return true;
-
-    const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
-    const botPatterns = [
-        'bot', 'crawler', 'spider', 'crawling', 'slurp', 'facebookexternalhit',
-        'whatsapp', 'twitterbot', 'pinterest', 'linkedinbot', 'telegrambot',
-        'discordbot', 'bingpreview', 'ahrefsbot', 'semrushbot', 'dotbot',
-        'petalbot', 'bytespider', 'yandex', 'baidu', 'headlesschrome',
-        'puppeteer', 'selenium', 'phantomjs', 'phantom', 'prerender',
-        'googlebot', 'bingbot', 'duckduckbot', 'yandexbot', 'sogou',
-        'exabot', 'facebot', 'ia_archiver'
-    ];
-    if (botPatterns.some(pattern => ua.includes(pattern))) return true;
-    if (window.callPhantom || window._phantom || window.__nightmare) return true;
-    return false;
-}
-
-document.addEventListener('contextmenu', (e) => e.preventDefault());
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'F12' || (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 's' || e.key === 'S'))) {
-        e.preventDefault();
-    }
-});
+const elements = {
+    productGrid: document.getElementById('product-grid'),
+    wishlistGrid: document.getElementById('wishlist-grid'),
+    spinner: document.getElementById('loading-spinner'),
+    searchInput: document.getElementById('search-input'),
+    filtersContainer: document.getElementById('category-filters'),
+    wishlistCount: document.getElementById('wishlist-count'),
+    viewWishlistBtn: document.getElementById('wishlist-trigger'),
+    backToCatalogueBtn: document.getElementById('back-to-catalogue'),
+    backFromWishlistBtn: document.getElementById('back-from-wishlist'),
+    emptyWishlistMsg: document.getElementById('wishlist-empty'),
+    
+    detailImage: document.getElementById('detail-image'),
+    overlay: document.getElementById('image-overlay'),
+    overlayImage: document.getElementById('overlay-image'),
+    overlayClose: document.getElementById('overlay-close'),
+    detailTitle: document.getElementById('detail-title'),
+    detailCode: document.getElementById('detail-code'),
+    detailDescription: document.getElementById('detail-description'),
+    detailPrice: document.getElementById('detail-price'),
+    detailMrp: document.getElementById('detail-mrp'),
+    
+    addToWishlistBtn: document.getElementById('wishlist-btn'),
+    wishlistBtnText: document.getElementById('wishlist-btn-text'),
+    wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
+    shareBtn: document.getElementById('share-btn'),
+    videoCallBtn: document.getElementById('video-call-btn')
+};
 
 function showToast(message) {
     const toast = document.getElementById('toast');
@@ -102,61 +70,44 @@ function showToast(message) {
     toast.classList.add('show');
     setTimeout(() => {
         toast.classList.remove('show');
-    }, 3200);
+    }, 3000);
 }
 
-// GOOGLE DRIVE FILE ID EXTRACTION
-function getGoogleDriveId(product) {
-    if (!product) return null;
-    
-    if (product.imageId && typeof product.imageId === 'string') {
-        const cleanedId = product.imageId.trim();
-        if (/^[a-zA-Z0-9_-]{25,50}$/.test(cleanedId)) return cleanedId;
-    }
-    
-    const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
-    if (!rawUrl) return null;
-
-    if (/^[a-zA-Z0-9_-]{25,50}$/.test(rawUrl)) {
-        return rawUrl;
-    }
-
-    const match = rawUrl.match(/(?:id=|file\/d\/|\/d\/|document\/d\/)([a-zA-Z0-9_-]{25,50})/);
-    if (match && match[1]) {
-        return match[1];
-    }
-    
-    return null;
+// SMART GOOGLE DRIVE FILE ID EXTRACTION
+function extractDriveFileId(str) {
+    if (!str || typeof str !== 'string') return null;
+    const trimmed = str.trim();
+    if (/^[a-zA-Z0-9_-]{25,50}$/.test(trimmed)) return trimmed;
+    const match = trimmed.match(/(?:id=|file\/d\/|\/d\/|document\/d\/)([a-zA-Z0-9_-]{25,50})/);
+    return match && match[1] ? match[1] : null;
 }
 
-// ULTRA-HD IMAGE GENERATOR
+// ULTRA-FAST DIRECT IMAGE GENERATOR
 function getProductImageUrl(product, width = 1200) {
     if (!product) return DEFAULT_IMAGE;
     
-    const fileId = getGoogleDriveId(product);
+    const fileId = extractDriveFileId(product.imageId) || 
+                   extractDriveFileId(product.imageLink) || 
+                   extractDriveFileId(product.thumbnail);
+
     if (fileId) {
-        const fetchWidth = Math.max(width, 1600);
-        const highResDriveUrl = encodeURIComponent(`https://drive.google.com/thumbnail?id=${fileId}&sz=w${fetchWidth}`);
-        return `https://wsrv.nl/?url=${highResDriveUrl}&w=${width}&q=92`;
+        return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
     }
     
-    const rawUrl = (product.imageLink || product.thumbnail || product.rawImageLink || '').trim();
-    if (!rawUrl) return DEFAULT_IMAGE;
-    
-    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    const rawUrl = (product.imageLink || product.thumbnail || '').trim();
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:') || rawUrl.startsWith('images/')) {
         return rawUrl;
-    }
-    
-    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        return `https://wsrv.nl/?url=${encodeURIComponent(rawUrl)}&w=${width}&q=92`;
     }
 
     return DEFAULT_IMAGE;
 }
 
-// FALLBACK HANDLER FOR IMAGES
+// 3-TIER ERROR FALLBACK FOR IMAGES
 function setupImageFallback(imgElement, product, width = 1200) {
-    const fileId = getGoogleDriveId(product);
+    const fileId = extractDriveFileId(product.imageId) || 
+                   extractDriveFileId(product.imageLink) || 
+                   extractDriveFileId(product.thumbnail);
+
     if (!fileId) return;
 
     imgElement.onerror = () => {
@@ -165,9 +116,8 @@ function setupImageFallback(imgElement, product, width = 1200) {
             imgElement.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
         } else if (imgElement.dataset.fallbackAttempted === "1") {
             imgElement.dataset.fallbackAttempted = "2";
-            imgElement.src = `https://lh3.googleusercontent.com/d/${fileId}`;
-        } else if (imgElement.dataset.fallbackAttempted === "2") {
-            imgElement.dataset.fallbackAttempted = "failed_all";
+            imgElement.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
+        } else {
             imgElement.src = DEFAULT_IMAGE;
         }
     };
@@ -212,16 +162,12 @@ function updateGoogleImageSchemaAndMeta(product) {
             "sku": product.code,
             "mpn": product.code,
             "brand": { "@type": "Brand", "name": "Kailash Kalamkari" },
-            "category": product.category || product.department || "Srikalahasti Pen Kalamkari Hand Painted Silk Sarees",
             "offers": {
                 "@type": "Offer",
                 "url": productUrl,
                 "priceCurrency": "INR",
                 "price": product.price,
-                "priceValidUntil": "2028-12-31",
-                "itemCondition": "https://schema.org/NewCondition",
-                "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                "seller": { "@type": "Organization", "name": "Kailash Kalamkari", "url": "https://www.kailash-kalamkari.com/" }
+                "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
             }
         };
         schemaScript.textContent = JSON.stringify(schemaData);
@@ -291,7 +237,7 @@ function navigateToState(department, fabric, hash = '', push = true) {
 
 function updateDepartmentUI() {
     const activeDepartment = getDepartmentConfig();
-    document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
+    document.querySelectorAll('.department-btn').forEach(element => {
         if (element.id === 'wishlist-trigger') return;
         const departmentKey = normalizeDepartment(element.dataset.department);
         element.classList.toggle('active', departmentKey === currentDepartment);
@@ -311,160 +257,13 @@ function setDepartment(department, { pushState = true } = {}) {
     filterAndSearchProducts();
 }
 
-function detectTrafficSource() {
-    const params = new URLSearchParams(window.location.search);
-    const utmSource = params.get('utm_source');
-    if (utmSource) return utmSource.toLowerCase().trim();
-
-    const referrer = document.referrer ? document.referrer.toLowerCase() : '';
-    if (referrer.includes('instagram.com')) return 'instagram';
-    if (referrer.includes('facebook.com') || referrer.includes('fb.me')) return 'facebook';
-    if (referrer.includes('whatsapp.com') || referrer.includes('wa.me')) return 'whatsapp';
-    return referrer ? 'other website' : 'direct / organic';
-}
-
-function detectBrowser() {
-    const userAgent = navigator.userAgent;
-    if (userAgent.includes('Chrome') || userAgent.includes('CriOS')) {
-        if (userAgent.includes('Edg') || userAgent.includes('OPR')) return 'Other Browser';
-        return 'Google Chrome';
-    }
-    if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari';
-    return 'Other Browser';
-}
-
-// CORS-SAFE GEOLOCATION PROVIDER
-async function getGeoLocation() {
-    try {
-        const res1 = await fetch('https://ipwho.is/', { mode: 'cors' });
-        if (res1.ok) {
-            const data = await res1.json();
-            if (data && data.success && data.city) {
-                return {
-                    city: data.city || 'Unknown',
-                    region: data.region || 'Unknown',
-                    country: data.country || 'Unknown',
-                    ip: data.ip || 'Anonymized'
-                };
-            }
-        }
-    } catch (e) {}
-
-    try {
-        const res2 = await fetch('https://ipapi.co/json/', { mode: 'cors' });
-        if (res2.ok) {
-            const data = await res2.json();
-            if (data && data.city) {
-                return {
-                    city: data.city || 'Unknown',
-                    region: data.region_code || data.region || 'Unknown',
-                    country: data.country_name || 'Unknown',
-                    ip: data.ip || 'Anonymized'
-                };
-            }
-        }
-    } catch (e) {}
-
-    return { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
-}
-
-async function logVisitorTraffic() {
-    if (isBotVisitor()) return;
-
-    const source = detectTrafficSource();
-    const browser = detectBrowser();
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-
-    let visitorId = localStorage.getItem('kalamkari_visitor_id');
-    let visitorType = 'Returning';
-
-    if (!visitorId) {
-        visitorId = 'visitor-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
-        localStorage.setItem('kalamkari_visitor_id', visitorId);
-        visitorType = 'New';
-    }
-
-    let locationData = { city: 'Unknown', region: 'Unknown', country: 'Unknown', ip: 'Anonymized' };
-    const cachedGeo = sessionStorage.getItem('kalamkari_geo_cache');
-
-    if (cachedGeo && !cachedGeo.includes('"city":"Unknown"')) {
-        try { locationData = JSON.parse(cachedGeo); } catch (e) {}
-    } else {
-        locationData = await getGeoLocation();
-        if (locationData.city !== 'Unknown') {
-            sessionStorage.setItem('kalamkari_geo_cache', JSON.stringify(locationData));
-        }
-    }
-
-    const payload = JSON.stringify({
-        action: 'logTraffic',
-        isBot: false,
-        timestamp: timestamp,
-        source: source,
-        browser: browser,
-        pageUrl: window.location.href,
-        visitorId: visitorId,
-        visitorType: visitorType,
-        city: locationData.city,
-        region: locationData.region,
-        country: locationData.country,
-        ip: locationData.ip,
-        userAgent: navigator.userAgent
-    });
-
-    try {
-        if (navigator.sendBeacon) {
-            navigator.sendBeacon(ANALYTICS_API_URL, new Blob([payload], { type: 'text/plain' }));
-        } else {
-            fetch(ANALYTICS_API_URL, { method: 'POST', mode: 'no-cors', body: payload });
-        }
-        sessionStorage.setItem('trafficLogged', 'true');
-    } catch (error) {}
-}
-
 function hideIntroAnimation() {
     const loader = document.getElementById('premium-intro-loader');
     if (loader) {
         loader.classList.add('fade-out');
-        setTimeout(() => loader.style.display = 'none', 800);
+        setTimeout(() => loader.style.display = 'none', 600);
     }
 }
-
-const views = {
-    catalogue: document.getElementById('catalogue-view'),
-    details: document.getElementById('product-details-view'),
-    wishlist: document.getElementById('wishlist-view')
-};
-
-const elements = {
-    productGrid: document.getElementById('product-grid'),
-    wishlistGrid: document.getElementById('wishlist-grid'),
-    spinner: document.getElementById('loading-spinner'),
-    searchInput: document.getElementById('search-input'),
-    filtersContainer: document.getElementById('category-filters'),
-    wishlistCount: document.getElementById('wishlist-count'),
-    viewWishlistBtn: document.getElementById('wishlist-trigger'),
-    backToCatalogueBtn: document.getElementById('back-to-catalogue'),
-    backFromWishlistBtn: document.getElementById('back-from-wishlist'),
-    emptyWishlistMsg: document.getElementById('wishlist-empty'),
-    
-    detailImage: document.getElementById('detail-image'),
-    detailImageSection: document.querySelector('.product-image-section'),
-    overlay: document.getElementById('image-overlay'),
-    overlayImage: document.getElementById('overlay-image'),
-    overlayClose: document.getElementById('overlay-close'),
-    detailTitle: document.getElementById('detail-title'),
-    detailCode: document.getElementById('detail-code'),
-    detailDescription: document.getElementById('detail-description'),
-    detailPrice: document.getElementById('detail-price'),
-    detailMrp: document.getElementById('detail-mrp'),
-    
-    addToWishlistBtn: document.getElementById('wishlist-btn'),
-    wishlistBtnText: document.getElementById('wishlist-btn-text'),
-    wishlistBtnIcon: document.getElementById('wishlist-btn-icon'),
-    shareBtn: document.getElementById('share-btn'),
-    videoCallBtn: document.getElementById('video-call-btn')
-};
 
 function scrollToDepartment(smooth = true) {
     if (isInitialLoad) return;
@@ -491,7 +290,6 @@ async function init() {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     updateWishlistCount();
     setupEventListeners();
-    logVisitorTraffic();
 
     await fetchProducts();
 
@@ -501,39 +299,30 @@ async function init() {
     const hash = window.location.hash;
 
     navigateToState(initialDept, initialFabric, hash, false);
-
-    if (hash.includes('kalamkari') || hash.startsWith('#product/') || hash === '#wishlist') {
-        const injectHistory = () => {
-            if (sessionPushedStates === 0) {
-                navigateToState(initialDept, initialFabric, '', false);
-                navigateToState(initialDept, initialFabric, hash, true);
-                sessionPushedStates++;
-            }
-            cleanup();
-        };
-
-        const cleanup = () => {
-            window.removeEventListener('click', injectHistory);
-            window.removeEventListener('touchstart', injectHistory);
-            window.removeEventListener('scroll', injectHistory);
-        };
-
-        window.addEventListener('click', injectHistory);
-        window.addEventListener('touchstart', injectHistory);
-        window.addEventListener('scroll', injectHistory);
-    }
-
     handlePopState(); 
     isInitialLoad = false;
     hideIntroAnimation();
 }
 
+// DIRECT GOOGLE SHEETS CSV FETCHING & PARSING VIA PAPAPARSE
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block'; 
-        const response = await fetch(CATALOG_API_URL);
-        const rawData = await response.json();
-        const data = Array.isArray(rawData) ? rawData : (rawData.value || rawData.data || rawData.records || []);
+
+        let csvText = '';
+        try {
+            const response = await fetch(PRIMARY_CSV_URL);
+            if (!response.ok) throw new Error(`Primary failed with status ${response.status}`);
+            csvText = await response.text();
+        } catch (e) {
+            console.warn('Primary CSV load failed, trying backup endpoint...', e);
+            const backupResp = await fetch(BACKUP_CSV_URL);
+            if (!backupResp.ok) throw new Error(`Backup failed with status ${backupResp.status}`);
+            csvText = await backupResp.text();
+        }
+
+        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+        const rawData = parsed.data || [];
         
         const getFieldValue = (item, keys) => {
             const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -555,7 +344,7 @@ async function fetchProducts() {
             return '';
         };
 
-        allProducts = data.map(item => {
+        allProducts = rawData.map(item => {
             function parsePrice(val) {
                 if (!val) return 0;
                 const cleaned = String(val).replace(/[^0-9.\-]/g, '');
@@ -563,32 +352,30 @@ async function fetchProducts() {
                 return isNaN(n) ? 0 : n;
             }
 
-            const code = String(getFieldValue(item, ['code', 'style code'])).trim();
-            const fabric = String(getFieldValue(item, ['fabric']) || 'Pure Silk').trim();
-            const category = String(getFieldValue(item, ['category']) || 'Uncategorized').trim();
+            const code = String(getFieldValue(item, ['code', 'style code', 'stylecode', 'item code', 'barcode', 'sku'])).trim();
+            const fabric = String(getFieldValue(item, ['fabric', 'material', 'fabric name']) || 'Pure Silk').trim();
+            const category = String(getFieldValue(item, ['category', 'type']) || 'Uncategorized').trim();
             const department = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
             const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(fabric, category, code) || 'saree';
             
-            const imageLink = String(getFieldValue(item, ['image link', 'drive link', 'image'])).trim();
-            const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link'])).trim() || imageLink;
-            const imageId = String(getFieldValue(item, ['image id', 'file id'])).trim();
+            const imageLink = String(getFieldValue(item, ['image link', 'imagelink', 'drive link', 'image', 'photo link', 'image url', 'photo'])).trim();
+            const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link', 'thumb'])).trim() || imageLink;
+            const imageId = String(getFieldValue(item, ['image id', 'imageid', 'file id', 'drive id'])).trim();
 
-            let rawQty = item.qty !== undefined && item.qty !== '' ? item.qty : (item.Qty !== undefined && item.Qty !== '' ? item.Qty : '');
+            let rawQty = getFieldValue(item, ['qty', 'quantity', 'stock', 'available', 'count']);
             let qty = rawQty !== '' ? Number(rawQty) : 1;
             if (isNaN(qty)) qty = 1;
 
-            let sellingPrice = parsePrice(getFieldValue(item, ['price', 'selling price', 'rate', 'amount']));
+            let sellingPrice = parsePrice(getFieldValue(item, ['price', 'selling price', 'rate', 'amount', 'offer price', 'cost']));
             let mrpFromSheet = parsePrice(getFieldValue(item, ['mrp', 'm.r.p', 'original price', 'mrp price', 'list price']));
 
-            let rawMrp = mrpFromSheet;
-            if (!rawMrp) rawMrp = sellingPrice;
-
+            let rawMrp = mrpFromSheet || sellingPrice;
             if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
                 if (rawMrp <= sellingPrice) rawMrp = sellingPrice;
                 sellingPrice = Math.round(rawMrp * (1 - GLOBAL_DISCOUNT_PERCENTAGE / 100));
             }
 
-            const description = String(getFieldValue(item, ['description', 'product description', 'desc'])).trim();
+            const description = String(getFieldValue(item, ['description', 'product description', 'desc', 'details'])).trim();
             const customTitle = String(getFieldValue(item, ['product name', 'saree name', 'dupatta name', 'item name', 'name', 'title'])).trim();
 
             let title = customTitle;
@@ -619,7 +406,7 @@ async function fetchProducts() {
                 price: sellingPrice, mrp: rawMrp,
                 qty, imageLink, thumbnail, imageId, description
             };
-        }).filter(item => item.code && item.price > 0 && !item.code.toLowerCase().includes('desktop') && (item.imageId || item.imageLink));
+        }).filter(item => item.code && item.price > 0 && (item.imageId || item.imageLink || item.thumbnail));
 
         allProducts = sortProductsByPrice(allProducts);
         if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
@@ -639,9 +426,15 @@ async function fetchProducts() {
         renderFilterButtons();
         filterAndSearchProducts();
     } catch (error) {
+        console.error('Catalogue Load Error:', error);
         if (elements.spinner) {
-            elements.spinner.textContent = 'Failed to load Kalamkari collection. Please try again later.';
+            elements.spinner.innerHTML = `
+                <p style="color: var(--color-temple-crimson); font-weight: 600;">Unable to connect to Google Sheets live catalog.</p>
+                <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.6rem 1.4rem; background: var(--color-temple-crimson); color: white; border: none; cursor: pointer; border-radius: 3px;">Retry</button>
+            `;
         }
+    } finally {
+        hideIntroAnimation();
     }
 }
 
@@ -941,12 +734,6 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
 }
 
 function showView(viewName) {
-    if (viewName === 'catalogue') {
-        switchProductTracking('Browsing Main Kalamkari Catalogue', 'N/A');
-    } else if (viewName === 'wishlist') {
-        switchProductTracking('Viewing Kalamkari Gallery Vault (Wishlist)', 'N/A');
-    }
-
     Object.values(views).forEach(v => v?.classList.remove('active'));
     views[viewName]?.classList.add('active');
     
@@ -963,7 +750,6 @@ function showView(viewName) {
     }
 }
 
-// RENDER FILTER BUTTONS (CLEAN CATEGORY NAMES WITHOUT EXTRA KALAMKARI)
 function renderFilterButtons() {
     if (!elements.filtersContainer) return;
     const departmentProducts = getDepartmentProducts();
@@ -990,7 +776,11 @@ function renderFilterButtons() {
 
     fabricMap.forEach((entry, key) => {
         const prices = entry.prices.filter(price => price > 0);
-        const priceText = prices.length > 0 ? formatPriceRange(prices) : 'Price Unavailable';
+        const minPrice = prices.length ? Math.min(...prices) : 0;
+        const maxPrice = prices.length ? Math.max(...prices) : 0;
+        const priceText = minPrice === maxPrice 
+            ? `₹${new Intl.NumberFormat('en-IN').format(minPrice)}` 
+            : `₹${new Intl.NumberFormat('en-IN').format(minPrice)} - ₹${new Intl.NumberFormat('en-IN').format(maxPrice)}`;
 
         const button = document.createElement('button');
         button.className = 'filter-btn';
@@ -1002,15 +792,9 @@ function renderFilterButtons() {
         elements.filtersContainer.appendChild(button);
     });
 
-    attachFilterHandlers();
-}
-
-function attachFilterHandlers() {
-    if (!elements.filtersContainer) return;
-    const buttons = elements.filtersContainer.querySelectorAll('.filter-btn');
-    buttons.forEach(btn => {
+    elements.filtersContainer.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('active'));
+            elements.filtersContainer.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             navigateToState(currentDepartment, btn.dataset.filter, '', true);
             filterAndSearchProducts();
@@ -1038,16 +822,6 @@ function syncFabricFilterUI(fabricParam) {
         }
     });
 
-    if (!matched) {
-        buttons.forEach(btn => {
-            const btnFilter = String(btn.dataset.filter || '').toLowerCase().replace(/\s+/g, ' ').trim();
-            if (cleanParam !== 'all' && (btnFilter.includes(cleanParam) || cleanParam.includes(btnFilter))) {
-                btn.classList.add('active');
-                matched = true;
-            }
-        });
-    }
-
     if (!matched && buttons.length > 0) {
         const allBtn = Array.from(buttons).find(b => b.dataset.filter === 'all');
         if (allBtn) allBtn.classList.add('active');
@@ -1056,67 +830,36 @@ function syncFabricFilterUI(fabricParam) {
     filterAndSearchProducts();
 }
 
-function formatPriceRange(prices) {
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    const opts = { style: 'currency', currency: 'INR', maximumFractionDigits: 0 };
-    const formattedMin = new Intl.NumberFormat('en-IN', opts).format(minPrice);
-    const formattedMax = new Intl.NumberFormat('en-IN', opts).format(maxPrice);
-    return minPrice === maxPrice ? formattedMin : `${formattedMin} to ${formattedMax}`;
-}
-
 function showProductDetails(product) {
-    switchProductTracking(product.title || `Kalamkari ${product.code}`, product.code);
-
     currentProduct = product;
-    isDetailZoomed = false;
-    
     trackRecentlyViewed(product);
 
     if (product.departmentKey && product.departmentKey !== currentDepartment) {
         currentDepartment = product.departmentKey;
         updateDepartmentUI();
         renderFilterButtons();
-    } else if (!elements.filtersContainer || !elements.filtersContainer.children.length) {
-        renderFilterButtons();
     }
-
-    const params = new URLSearchParams(window.location.search);
-    const fabricParam = params.get('fabric') || (product.fabric ? product.fabric.toLowerCase().replace(/\s+/g, ' ').trim() : 'all');
-    syncFabricFilterUI(fabricParam);
 
     if (elements.detailImage) {
         delete elements.detailImage.dataset.fallbackAttempted;
-        const detailPrimaryUrl = getProductImageUrl(product, 2000);
-        elements.detailImage.src = detailPrimaryUrl;
-        elements.detailImage.alt = `Kailash Kalamkari Hand-Painted Srikalahasti Pen Kalamkari ${product.title} Code ${product.code} (${product.fabric})`;
-        elements.detailImage.title = `${product.title} - Click to Zoom Artwork Details`;
+        elements.detailImage.src = getProductImageUrl(product, 2000);
+        elements.detailImage.alt = `Kailash Kalamkari ${product.title}`;
         setupImageFallback(elements.detailImage, product, 2000);
     }
 
     const detailImgBadge = document.getElementById('detail-image-discount-badge');
     if (detailImgBadge) {
         const discountPct = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0;
-        if (discountPct > 0) {
-            detailImgBadge.textContent = `${discountPct}% OFF`;
-            detailImgBadge.style.display = 'block';
-        } else {
-            detailImgBadge.style.display = 'none';
-        }
+        detailImgBadge.style.display = discountPct > 0 ? 'block' : 'none';
+        if (discountPct > 0) detailImgBadge.textContent = `${discountPct}% OFF`;
     }
     
     if (elements.detailTitle) elements.detailTitle.textContent = product.title;
-    
-    // DISPLAY STYLE CODE
     if (elements.detailCode) elements.detailCode.textContent = product.code || 'N/A';
     
     if (elements.detailDescription) {
-        if (product.description) {
-            elements.detailDescription.textContent = product.description;
-            elements.detailDescription.style.display = 'block';
-        } else {
-            elements.detailDescription.style.display = 'none';
-        }
+        elements.detailDescription.textContent = product.description || '';
+        elements.detailDescription.style.display = product.description ? 'block' : 'none';
     }
     
     if (elements.detailPrice) elements.detailPrice.textContent = new Intl.NumberFormat('en-IN').format(product.price);
@@ -1131,7 +874,6 @@ function showProductDetails(product) {
     }
     
     updateGoogleImageSchemaAndMeta(product);
-
     updateWishlistButtonState();
     renderFabricProducts(product);
     renderSimilarProducts(product);
@@ -1144,52 +886,17 @@ function showProductDetails(product) {
 
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
-    delete elements.overlayImage.dataset.fallbackAttempted;
-
-    const overlayPrimaryUrl = getProductImageUrl(product, 2000);
-    elements.overlayImage.src = overlayPrimaryUrl;
-    elements.overlayImage.alt = `Kailash Kalamkari Srikalahasti Pen Kalamkari ${product.title} Detail`;
+    elements.overlayImage.src = getProductImageUrl(product, 2000);
     elements.overlayImage.style.transform = 'scale(1)';
-    elements.overlayImage.style.transformOrigin = '50% 50%';
-    elements.overlayImage.style.cursor = 'zoom-in';
     elements.overlay.classList.remove('hidden');
     isOverlayZoomed = false;
     document.body.style.overflow = 'hidden';
-
-    setupImageFallback(elements.overlayImage, product, 2000);
 }
 
 function closeOverlay() {
     if (!elements.overlay) return;
     elements.overlay.classList.add('hidden');
-    if (elements.overlayImage) {
-        elements.overlayImage.style.transform = 'scale(1)';
-        elements.overlayImage.style.transformOrigin = '50% 50%';
-        elements.overlayImage.style.cursor = 'zoom-in';
-    }
-    isOverlayZoomed = false;
     document.body.style.overflow = '';
-}
-
-function toggleOverlayZoom() {
-    if (!elements.overlayImage) return;
-    isOverlayZoomed = !isOverlayZoomed;
-    if (isOverlayZoomed) {
-        elements.overlayImage.style.transform = 'scale(2.5)';
-        elements.overlayImage.style.cursor = 'zoom-out';
-    } else {
-        elements.overlayImage.style.transform = 'scale(1)';
-        elements.overlayImage.style.transformOrigin = '50% 50%';
-        elements.overlayImage.style.cursor = 'zoom-in';
-    }
-}
-
-function moveOverlayZoom(event) {
-    if (!isOverlayZoomed || !elements.overlayImage) return;
-    const rect = elements.overlayImage.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    elements.overlayImage.style.transformOrigin = `${x}% ${y}%`;
 }
 
 function toggleWishlist(product = currentProduct) {
@@ -1198,10 +905,10 @@ function toggleWishlist(product = currentProduct) {
     
     if (index === -1) {
         wishlist.push(product);
-        showToast(`Added to Kalamkari Gallery Vault!`);
+        showToast(`Added to Gallery Vault!`);
     } else {
         wishlist.splice(index, 1);
-        showToast(`Removed from Kalamkari Gallery Vault.`);
+        showToast(`Removed from Gallery Vault.`);
     }
     
     localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
@@ -1235,7 +942,6 @@ function filterAndSearchProducts() {
         const matchesSearch = !searchTerm ? true : (
             (product.code && product.code.toLowerCase().includes(searchTerm)) ||
             (product.fabric && product.fabric.toLowerCase().includes(searchTerm)) ||
-            (product.category && product.category.toLowerCase().includes(searchTerm)) ||
             (product.description && product.description.toLowerCase().includes(searchTerm))
         );
             
@@ -1262,17 +968,15 @@ function buyNow(product = currentProduct) {
     const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
-    showToast('Redirecting to WhatsApp to place your order...');
 }
 
 function bookVideoCall(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
-    const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK A LIVE VIDEO CALL to inspect this hand-painted Kalamkari saree artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)} (MRP: INR ${new Intl.NumberFormat('en-IN').format(product.mrp)})\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK A LIVE VIDEO CALL to inspect this hand-painted Kalamkari saree artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
-    showToast('Redirecting to WhatsApp to schedule Live Video Call...');
 }
 
 function shareProduct(product = currentProduct) {
@@ -1282,33 +986,12 @@ function shareProduct(product = currentProduct) {
     
     pendingShareData = { title: product.title, text: shareText, url: shareUrl };
 
-    if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        navigator.share({
-            title: product.title,
-            text: shareText,
-            url: shareUrl
-        }).catch(err => {
-            if (err.name !== 'AbortError') {
-                openShareModal(product.title, shareUrl, shareText);
-            }
-        });
+    if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        navigator.share({ title: product.title, text: shareText, url: shareUrl }).catch(() => {});
     } else {
-        openShareModal(product.title, shareUrl, shareText);
+        const modal = document.getElementById('share-modal');
+        if (modal) modal.classList.remove('hidden');
     }
-}
-
-function openShareModal(title, shareUrl, shareText) {
-    const modal = document.getElementById('share-modal');
-    const subtitle = document.getElementById('share-modal-subtitle');
-    if (!modal) return;
-
-    if (subtitle) subtitle.textContent = `Choose your preferred channel to share "${title}":`;
-    modal.classList.remove('hidden');
-}
-
-function closeShareModal() {
-    const modal = document.getElementById('share-modal');
-    if (modal) modal.classList.add('hidden');
 }
 
 function setupEventListeners() {
@@ -1318,7 +1001,6 @@ function setupEventListeners() {
     if (elements.viewWishlistBtn) {
         elements.viewWishlistBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            e.stopPropagation();
             sessionPushedStates++;
             window.location.hash = '#wishlist';
             renderWishlist();
@@ -1338,16 +1020,14 @@ function setupEventListeners() {
 
     const shareCloseBtn = document.getElementById('share-modal-close');
     const shareBackdrop = document.getElementById('share-modal-backdrop');
-    if (shareCloseBtn) shareCloseBtn.addEventListener('click', closeShareModal);
-    if (shareBackdrop) shareBackdrop.addEventListener('click', closeShareModal);
+    if (shareCloseBtn) shareCloseBtn.addEventListener('click', () => document.getElementById('share-modal')?.classList.add('hidden'));
+    if (shareBackdrop) shareBackdrop.addEventListener('click', () => document.getElementById('share-modal')?.classList.add('hidden'));
 
     const shareWhatsappBtn = document.getElementById('share-whatsapp-btn');
     if (shareWhatsappBtn) {
         shareWhatsappBtn.addEventListener('click', () => {
             if (!pendingShareData) return;
-            const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(pendingShareData.text + '\n' + pendingShareData.url)}`;
-            window.open(waUrl, '_blank');
-            closeShareModal();
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(pendingShareData.text + '\n' + pendingShareData.url)}`, '_blank');
         });
     }
 
@@ -1355,36 +1035,13 @@ function setupEventListeners() {
     if (shareCopyBtn) {
         shareCopyBtn.addEventListener('click', async () => {
             if (!pendingShareData) return;
-            try {
-                await navigator.clipboard.writeText(pendingShareData.url);
-                showToast("Kalamkari masterpiece link copied to clipboard!");
-            } catch (err) {
-                showToast("Failed to copy link.");
-            }
-            closeShareModal();
+            await navigator.clipboard.writeText(pendingShareData.url);
+            showToast("Masterpiece link copied to clipboard!");
+            document.getElementById('share-modal')?.classList.add('hidden');
         });
     }
 
-    const shareFacebookBtn = document.getElementById('share-facebook-btn');
-    if (shareFacebookBtn) {
-        shareFacebookBtn.addEventListener('click', () => {
-            if (!pendingShareData) return;
-            const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pendingShareData.url)}`;
-            window.open(fbUrl, '_blank');
-            closeShareModal();
-        });
-    }
-
-    if (elements.searchInput) {
-        elements.searchInput.addEventListener('input', () => {
-            if (views.details && views.details.classList.contains('active')) {
-                showView('catalogue');
-            }
-            filterAndSearchProducts();
-        });
-    }
-
-    document.querySelectorAll('.collection-card, .department-btn').forEach(element => {
+    document.querySelectorAll('.department-btn').forEach(element => {
         element.addEventListener('click', () => {
             if (element.id === 'wishlist-trigger') return;
             setDepartment(element.dataset.department, { pushState: true }); 
@@ -1393,24 +1050,7 @@ function setupEventListeners() {
     });
     
     if (elements.detailImage) elements.detailImage.addEventListener('click', () => openFullScreenImage(currentProduct));
-    
-    if (elements.overlay) {
-        elements.overlay.addEventListener('click', event => {
-            if (event.target === elements.overlay || event.target === elements.overlayClose) {
-                closeOverlay();
-            }
-        });
-    }
-    if (elements.overlayImage) {
-        elements.overlayImage.addEventListener('click', toggleOverlayZoom);
-        elements.overlayImage.addEventListener('mousemove', moveOverlayZoom);
-    }
-    document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-            closeOverlay();
-            closeShareModal();
-        }
-    });
+    if (elements.overlay) elements.overlay.addEventListener('click', closeOverlay);
 
     window.addEventListener('popstate', handlePopState); 
 }
@@ -1427,18 +1067,9 @@ function handlePopState() {
     if (hash.includes('kalamkari') || hash.startsWith('#product/')) {
         const codeMatch = hash.match(/(?:[A-Za-z0-9_-]+-)?([A-Za-z0-9]+)$/);
         const productCode = codeMatch ? codeMatch[1] : hash.split('/').pop();
-
-        if (allProducts.length === 0) {
-            fetchProducts().then(() => {
-                const product = allProducts.find(p => p.code === productCode);
-                if (product) showProductDetails(product);
-                else showView('catalogue'); 
-            });
-        } else {
-            const product = allProducts.find(p => p.code === productCode);
-            if (product) showProductDetails(product);
-            else showView('catalogue');
-        }
+        const product = allProducts.find(p => p.code === productCode);
+        if (product) showProductDetails(product);
+        else showView('catalogue');
     } else if (hash === '#wishlist') {
         renderWishlist();
         showView('wishlist');
@@ -1451,73 +1082,11 @@ function handlePopState() {
 
 function updateWishlistButtonState() {
     if (!elements.addToWishlistBtn) return;
+    const isInWishlist = currentProduct ? wishlist.some(item => item.code === currentProduct.code) : false;
     
-    const prod = currentProduct;
-    const isInWishlist = prod ? wishlist.some(item => item.code === prod.code) : false;
-    
-    if (isInWishlist) {
-        elements.addToWishlistBtn.classList.add('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'In Gallery Vault';
-        if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '♥';
-    } else {
-        elements.addToWishlistBtn.classList.remove('active');
-        if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = 'Add to Gallery Vault';
-        if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = '❤️';
-    }
-
-    const floatingWishlistBtn = document.getElementById('detail-floating-wishlist-btn');
-    if (floatingWishlistBtn) {
-        floatingWishlistBtn.classList.toggle('active', isInWishlist);
-        floatingWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
-    }
+    elements.addToWishlistBtn.classList.toggle('active', isInWishlist);
+    if (elements.wishlistBtnText) elements.wishlistBtnText.textContent = isInWishlist ? 'In Gallery Vault' : 'Add to Gallery Vault';
+    if (elements.wishlistBtnIcon) elements.wishlistBtnIcon.textContent = isInWishlist ? '♥' : '❤️';
 }
-
-function recordProductTimeSpent() {
-    if (isBotVisitor() || !hasUserInteracted) return;
-
-    const durationSeconds = getActiveDurationSeconds();
-    
-    if (durationSeconds >= 2) {
-        const visitorId = localStorage.getItem('kalamkari_visitor_id') || 'Unknown';
-        const visitorType = sessionStorage.getItem('trafficLogged') === 'true' ? 'Returning' : 'New';
-        const minutes = Math.floor(durationSeconds / 60);
-        const seconds = durationSeconds % 60;
-        const formattedTime = `${minutes}m ${seconds}s`;
-
-        const payload = JSON.stringify({
-            action: 'logTimeSpent',
-            isBot: false,
-            timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-            visitorId: visitorId,
-            visitorType: visitorType,
-            activeProduct: currentTrackedProductTitle,
-            productCode: currentTrackedProductCode,
-            durationSeconds: durationSeconds,
-            durationFormatted: formattedTime,
-            pageUrl: window.location.href
-        });
-
-        try {
-            if (navigator.sendBeacon) {
-                navigator.sendBeacon(ANALYTICS_API_URL, new Blob([payload], { type: 'text/plain' }));
-            } else {
-                fetch(ANALYTICS_API_URL, { method: 'POST', mode: 'no-cors', body: payload });
-            }
-        } catch (e) {}
-    }
-}
-
-function switchProductTracking(newTitle, newCode) {
-    recordProductTimeSpent();
-
-    currentTrackedProductTitle = newTitle || 'Browsing Main Kalamkari Catalogue';
-    currentTrackedProductCode = newCode || 'N/A';
-    resetProductTimer();
-}
-
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') recordProductTimeSpent();
-});
-window.addEventListener('pagehide', recordProductTimeSpent);
 
 document.addEventListener('DOMContentLoaded', init);
