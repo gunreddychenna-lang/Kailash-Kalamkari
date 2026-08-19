@@ -105,16 +105,29 @@
     let country = "India";
     let ip = "Anonymized";
 
+    // Multi-tier 100% Free Geolocation Engine (Zero 1,000/day lock)
     try {
-      const geoRes = await fetch("https://ipapi.co/json/", { cache: "force-cache" });
+      const geoRes = await fetch("https://ipwho.is/", { cache: "force-cache" });
       if (geoRes.ok) {
         const geoData = await geoRes.json();
-        city = geoData.city || "Unknown";
-        region = geoData.region || "Unknown";
-        country = geoData.country_name || "India";
-        ip = geoData.ip || "Anonymized";
+        if (geoData.success !== false) {
+          city = geoData.city || "Unknown";
+          region = geoData.region || "Unknown";
+          country = geoData.country || "India";
+          ip = geoData.ip || "Anonymized";
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      try {
+        const fallbackRes = await fetch("https://get.geojs.io/v1/ip/geo.json");
+        if (fallbackRes.ok) {
+          const fbData = await fallbackRes.json();
+          city = fbData.city || "Unknown";
+          region = fbData.region || "Unknown";
+          country = fbData.country || "India";
+        }
+      } catch (err) {}
+    }
 
     const payload = {
       action: "logTraffic",

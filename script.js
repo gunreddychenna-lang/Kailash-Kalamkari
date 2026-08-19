@@ -132,14 +132,11 @@ function setupImageFallback(imgElement, product, width = 800) {
     imgElement.onerror = () => {
         if (!imgElement.dataset.fallbackAttempted) {
             imgElement.dataset.fallbackAttempted = "1";
-            // Fallback 1: Google CDN direct
             imgElement.src = `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
         } else if (imgElement.dataset.fallbackAttempted === "1") {
             imgElement.dataset.fallbackAttempted = "2";
-            // Fallback 2: Direct Drive View
             imgElement.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
         } else {
-            // Final Fallback: Clean Placeholder
             imgElement.src = DEFAULT_IMAGE;
         }
     };
@@ -308,38 +305,64 @@ function goBack() {
     }
 }
 
-// DIRECT DATA PARSER SUPPORTING APPS SCRIPT JSON & GOOGLE SHEETS CSV
+// DIRECT DATA PARSER WITH 3-MINUTE SMART CACHE
 async function fetchProducts() {
     try {
         if (elements.spinner) elements.spinner.style.display = 'block'; 
 
+        // 1. IN-BROWSER CACHE (Valid for 3 Minutes to protect Google Sheets)
+        const CACHE_KEY = 'kalamkari_catalog_cache';
+        const CACHE_TIME_KEY = 'kalamkari_catalog_time';
+        const CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+
+        const cachedData = sessionStorage.getItem(CACHE_KEY);
+        const cachedTime = sessionStorage.getItem(CACHE_TIME_KEY);
+        const isCacheValid = cachedData && cachedTime && (Date.now() - Number(cachedTime) < CACHE_TTL);
+
         let rawData = [];
 
-        // 1. Try Apps Script Web App JSON API
-        try {
-            const apiRes = await fetch(APPS_SCRIPT_API_URL, { cache: 'no-cache' });
-            if (apiRes.ok) {
-                rawData = await apiRes.json();
+        if (isCacheValid) {
+            try {
+                rawData = JSON.parse(cachedData);
+            } catch (e) {
+                sessionStorage.removeItem(CACHE_KEY);
             }
-        } catch (e) {
-            console.warn('Apps Script JSON API load failed, trying published CSV...', e);
         }
 
-        // 2. If API returns empty or fails, fallback to published CSV
+        // 2. FETCH FROM GOOGLE IF NO VALID CACHE EXISTS
         if (!rawData || !rawData.length) {
-            let csvText = '';
+            // A. Try Apps Script Web App JSON API
             try {
-                const response = await fetch(PRIMARY_CSV_URL);
-                if (!response.ok) throw new Error(`Primary failed with status ${response.status}`);
-                csvText = await response.text();
+                const apiRes = await fetch(APPS_SCRIPT_API_URL, { cache: 'no-cache' });
+                if (apiRes.ok) {
+                    rawData = await apiRes.json();
+                }
             } catch (e) {
-                const backupResp = await fetch(BACKUP_CSV_URL);
-                if (!backupResp.ok) throw new Error(`Backup failed with status ${backupResp.status}`);
-                csvText = await backupResp.text();
+                console.warn('Apps Script JSON API load failed, trying published CSV...', e);
             }
 
-            const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-            rawData = parsed.data || [];
+            // B. Fallback to published Google Sheets CSV
+            if (!rawData || !rawData.length) {
+                let csvText = '';
+                try {
+                    const response = await fetch(PRIMARY_CSV_URL);
+                    if (!response.ok) throw new Error(`Primary failed with status ${response.status}`);
+                    csvText = await response.text();
+                } catch (e) {
+                    const backupResp = await fetch(BACKUP_CSV_URL);
+                    if (!backupResp.ok) throw new Error(`Backup failed with status ${backupResp.status}`);
+                    csvText = await backupResp.text();
+                }
+
+                const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+                rawData = parsed.data || [];
+            }
+
+            // C. Save fetched data to cache
+            if (rawData && rawData.length > 0) {
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
+                sessionStorage.setItem(CACHE_TIME_KEY, String(Date.now()));
+            }
         }
         
         const getFieldValue = (item, keys) => {
@@ -389,7 +412,6 @@ async function fetchProducts() {
 
             let rawMrp = mrpFromSheet || sellingPrice;
             if (sellingPrice === 0) {
-                // If price not entered, default to standard tier
                 sellingPrice = 14500;
                 rawMrp = 16000;
             } else if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
