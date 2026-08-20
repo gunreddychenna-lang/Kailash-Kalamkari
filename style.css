@@ -646,6 +646,7 @@ body.details-mode .main-header {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2.5rem;
+    min-height: 600px; /* Prevents layout collapse and scroll jumping on filter update */
 }
 
 .product-card {

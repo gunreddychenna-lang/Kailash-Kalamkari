@@ -276,6 +276,7 @@ function setDepartment(department, { pushState = true } = {}) {
     renderFilterButtons();
     if (pushState) navigateToState(currentDepartment, 'all', '', true);
     filterAndSearchProducts();
+    scrollToDepartment(true);
 }
 
 function hideIntroAnimation() {
@@ -288,10 +289,28 @@ function hideIntroAnimation() {
 
 function scrollToDepartment(smooth = true) {
     if (isInitialLoad) return;
-    const target = document.querySelector('.sticky-nav-container') || document.querySelector('.department-bar-container');
-    if (target) {
-        window.scrollTo({ top: target.offsetTop, behavior: smooth ? 'smooth' : 'auto' });
-    }
+    
+    setTimeout(() => {
+        const mainHeader = document.querySelector('.main-header');
+        const stickyNav = document.querySelector('.sticky-nav-container');
+        let targetScrollY = 0;
+
+        if (mainHeader) {
+            targetScrollY = mainHeader.offsetHeight;
+        } else if (stickyNav) {
+            const productGrid = document.getElementById('product-grid');
+            if (productGrid) {
+                const gridTop = productGrid.getBoundingClientRect().top + window.pageYOffset;
+                const navHeight = stickyNav.offsetHeight || 150;
+                targetScrollY = Math.max(0, gridTop - navHeight - 15);
+            }
+        }
+
+        window.scrollTo({
+            top: targetScrollY,
+            behavior: smooth ? 'smooth' : 'auto'
+        });
+    }, 50);
 }
 
 function goBack() {
