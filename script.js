@@ -1,15 +1,15 @@
 // =========================================================================
-// KAILASH KALAMKARI E-COMMERCE ENGINE
+// KAILASH KALAMKARI E-COMMERCE & HIGH-SPEED CACHE ENGINE (FIXED)
 // =========================================================================
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
-// YOUR IMAGEKIT PRODUCTION CDN ENDPOINT
+// IMAGEKIT CDN ENDPOINT
 const IMAGEKIT_ENDPOINT = 'https://ik.imagekit.io/phuzcbamt';
 
-// GOOGLE APPS SCRIPT WEB APP JSON API (Primary) & CSV URL (Backup Fallback)
+// GOOGLE APPS SCRIPT WEB APP JSON API & CSV FALLBACK ENDPOINTS
 const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv';
 const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv';
@@ -23,6 +23,10 @@ const DEPARTMENTS = [
     { key: 'saree', label: 'Kalamkari Sarees', singular: 'Kalamkari Saree' },
     { key: 'dupatta', label: 'Kalamkari Dupattas', singular: 'Kalamkari Dupatta' }
 ];
+
+const CACHE_STORAGE_KEY = 'kailash_catalog_v4';
+const CACHE_TIME_KEY = 'kailash_catalog_time_v4';
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
 let filteredProducts = [];
@@ -110,7 +114,11 @@ function getProductImageUrl(product, width = 800) {
         return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
     }
     
-    const rawUrl = (product.imageLink || product['Drive Link'] || product.thumbnail || '').trim();
+    let rawUrl = (product.imageLink || product['Drive Link'] || product.thumbnail || '').trim();
+    if (rawUrl.startsWith('uc?export=view')) {
+        rawUrl = 'https://drive.google.com/' + rawUrl;
+    }
+
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
         if (IMAGEKIT_ENDPOINT) {
             return `${IMAGEKIT_ENDPOINT}/tr:w-${width},f-auto,q-80/${rawUrl}`;
@@ -147,7 +155,7 @@ function setupImageFallback(imgElement, product, width = 800) {
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
     const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Pen Kalamkari | Kailash Kalamkari`;
-    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) with natural organic mineral dyes. Code: ${product.code}. Offer Price: ₹${new Intl.NumberFormat('en-IN').format(product.price)}. Direct from Kailash Kalamkari master artisans in Srikalahasti.`;
+    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) with natural organic mineral dyes. Code: ${product.code}. Direct from Kailash Kalamkari master artisans in Srikalahasti.`;
     const imageUrl = getProductImageUrl(product, 2000);
     const productUrl = `https://www.kailash-kalamkari.com/#kailash-kalamkari-srikalahasthi-pen-kalamkari-${product.code}`;
 
@@ -273,18 +281,10 @@ function setDepartment(department, { pushState = true } = {}) {
     currentDepartment = normalizeDepartment(department) || 'saree';
     if (elements.searchInput) elements.searchInput.value = '';
     updateDepartmentUI();
-    renderFilterButtons();
+    renderFilterButtons('all');
     if (pushState) navigateToState(currentDepartment, 'all', '', true);
     filterAndSearchProducts();
     scrollToDepartment(true);
-}
-
-function hideIntroAnimation() {
-    const loader = document.getElementById('premium-intro-loader');
-    if (loader) {
-        loader.classList.add('fade-out');
-        setTimeout(() => loader.style.display = 'none', 600);
-    }
 }
 
 function scrollToDepartment(smooth = true) {
@@ -326,174 +326,197 @@ function goBack() {
     }
 }
 
-async function fetchProducts() {
-    try {
-        if (elements.spinner) elements.spinner.style.display = 'block'; 
+// Transform raw spreadsheet records into normalized product objects
+function processRawCatalogData(rawData) {
+    const getFieldValue = (item, keys) => {
+        const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedEntries = Object.entries(item).map(([itemKey, value]) => [normalize(itemKey), value]);
 
-        const CACHE_KEY = 'kalamkari_catalog_cache';
-        const CACHE_TIME_KEY = 'kalamkari_catalog_time';
-        const CACHE_TTL = 3 * 60 * 1000;
+        for (const key of keys) {
+            const normalizedKey = normalize(key);
+            let value = item[key];
 
-        const cachedData = sessionStorage.getItem(CACHE_KEY);
-        const cachedTime = sessionStorage.getItem(CACHE_TIME_KEY);
-        const isCacheValid = cachedData && cachedTime && (Date.now() - Number(cachedTime) < CACHE_TTL);
+            if (value === undefined || value === null) {
+                const matchedEntry = normalizedEntries.find(([itemKey]) => itemKey === normalizedKey);
+                if (matchedEntry) value = matchedEntry[1];
+            }
 
-        let rawData = [];
-
-        if (isCacheValid) {
-            try {
-                rawData = JSON.parse(cachedData);
-            } catch (e) {
-                sessionStorage.removeItem(CACHE_KEY);
+            if (value !== undefined && value !== null && String(value).trim() !== '') {
+                return String(value).trim();
             }
         }
+        return '';
+    };
 
-        if (!rawData || !rawData.length) {
-            try {
-                const apiRes = await fetch(APPS_SCRIPT_API_URL, { cache: 'no-cache' });
-                if (apiRes.ok) {
-                    rawData = await apiRes.json();
-                }
-            } catch (e) {
-                console.warn('Apps Script JSON API load failed, trying published CSV...', e);
-            }
+    function parsePrice(val) {
+        if (!val) return 0;
+        const cleaned = String(val).replace(/[^0-9.\-]/g, '');
+        const n = Number(cleaned);
+        return isNaN(n) ? 0 : n;
+    }
 
-            if (!rawData || !rawData.length) {
-                let csvText = '';
-                try {
-                    const response = await fetch(PRIMARY_CSV_URL);
-                    if (!response.ok) throw new Error(`Primary failed with status ${response.status}`);
-                    csvText = await response.text();
-                } catch (e) {
-                    const backupResp = await fetch(BACKUP_CSV_URL);
-                    if (!backupResp.ok) throw new Error(`Backup failed with status ${backupResp.status}`);
-                    csvText = await backupResp.text();
-                }
-
-                const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-                rawData = parsed.data || [];
-            }
-
-            if (rawData && rawData.length > 0) {
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
-                sessionStorage.setItem(CACHE_TIME_KEY, String(Date.now()));
-            }
-        }
+    return rawData.map(item => {
+        const code = String(getFieldValue(item, ['style code', 'stylecode', 'code', 'item code', 'barcode', 'sku'])).trim();
         
-        const getFieldValue = (item, keys) => {
-            const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            const normalizedEntries = Object.entries(item).map(([itemKey, value]) => [normalize(itemKey), value]);
+        // Comprehensive fabric header detection
+        const fabric = String(getFieldValue(item, [
+            'fabric', 'fabric type', 'material', 'fabric name', 
+            'fabric details', 'fabric / material', 'saree fabric', 'silk type', 'type'
+        ]) || 'Pure Silk').trim();
 
-            for (const key of keys) {
-                const normalizedKey = normalize(key);
-                let value = item[key];
+        const category = String(getFieldValue(item, ['category', 'type']) || 'Uncategorized').trim();
+        const department = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
+        const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(fabric, category, code) || 'saree';
+        
+        let imageLink = String(getFieldValue(item, ['thumbnail link', 'drive link', 'image link', 'imagelink', 'image', 'photo link', 'image url', 'photo'])).trim();
+        const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link', 'thumb'])).trim() || imageLink;
+        const imageId = String(getFieldValue(item, ['file id', 'fileid', 'image id', 'imageid', 'drive id'])).trim() || extractDriveFileId(imageLink);
 
-                if (value === undefined || value === null) {
-                    const matchedEntry = normalizedEntries.find(([itemKey]) => itemKey === normalizedKey);
-                    if (matchedEntry) value = matchedEntry[1];
-                }
+        let rawQty = getFieldValue(item, ['qty', 'quantity', 'stock', 'available', 'count']);
+        let qty = rawQty !== '' ? Number(rawQty) : 1;
+        if (isNaN(qty)) qty = 1;
 
-                if (value !== undefined && value !== null && String(value).trim() !== '') {
-                    return String(value).trim();
-                }
-            }
-            return '';
-        };
+        let sellingPrice = parsePrice(getFieldValue(item, ['price', 'selling price', 'rate', 'amount', 'offer price', 'cost']));
+        let mrpFromSheet = parsePrice(getFieldValue(item, ['mrp', 'm.r.p', 'original price', 'mrp price', 'list price']));
 
-        allProducts = rawData.map(item => {
-            function parsePrice(val) {
-                if (!val) return 0;
-                const cleaned = String(val).replace(/[^0-9.\-]/g, '');
-                const n = Number(cleaned);
-                return isNaN(n) ? 0 : n;
-            }
-
-            const code = String(getFieldValue(item, ['style code', 'stylecode', 'code', 'item code', 'barcode', 'sku'])).trim();
-            const fabric = String(getFieldValue(item, ['fabric', 'material', 'fabric name']) || 'Pure Silk').trim();
-            const category = String(getFieldValue(item, ['category', 'type']) || 'Uncategorized').trim();
-            const department = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
-            const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(fabric, category, code) || 'saree';
-            
-            const imageLink = String(getFieldValue(item, ['thumbnail link', 'drive link', 'image link', 'imagelink', 'image', 'photo link', 'image url', 'photo'])).trim();
-            const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link', 'thumb'])).trim() || imageLink;
-            const imageId = String(getFieldValue(item, ['file id', 'fileid', 'image id', 'imageid', 'drive id'])).trim();
-
-            let rawQty = getFieldValue(item, ['qty', 'quantity', 'stock', 'available', 'count']);
-            let qty = rawQty !== '' ? Number(rawQty) : 1;
-            if (isNaN(qty)) qty = 1;
-
-            let sellingPrice = parsePrice(getFieldValue(item, ['price', 'selling price', 'rate', 'amount', 'offer price', 'cost']));
-            let mrpFromSheet = parsePrice(getFieldValue(item, ['mrp', 'm.r.p', 'original price', 'mrp price', 'list price']));
-
-            let rawMrp = mrpFromSheet || sellingPrice;
-            if (sellingPrice === 0) {
-                sellingPrice = 14500;
-                rawMrp = 16000;
-            } else if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
-                if (rawMrp <= sellingPrice) rawMrp = sellingPrice;
-                sellingPrice = Math.round(rawMrp * (1 - GLOBAL_DISCOUNT_PERCENTAGE / 100));
-            }
-
-            const description = String(getFieldValue(item, ['description', 'product description', 'desc', 'details'])).trim();
-            const customTitle = String(getFieldValue(item, ['product name', 'saree name', 'dupatta name', 'item name', 'name', 'title'])).trim();
-
-            let title = customTitle;
-            if (!title) {
-                if (fabric) {
-                    let baseFabric = fabric.trim();
-                    if (departmentKey === 'saree') {
-                        baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
-                    } else if (departmentKey === 'dupatta') {
-                        baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
-                    }
-                    
-                    let shortFabric = baseFabric.replace(/\s+silk\s*$/i, '');
-                    if (!shortFabric) shortFabric = baseFabric;
-
-                    const deptSingular = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
-                    title = `${shortFabric} Pen Kalamkari ${deptSingular}`;
-                } else {
-                    const deptSingular = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
-                    title = `Pen Kalamkari ${deptSingular} ${code}`;
-                }
-            } else {
-                title = title.replace(/Hand-Painted Srikalahasti /gi, '').replace(/Sreekalahasthi /gi, '');
-            }
-
-            return {
-                code, title, fabric, category, department, departmentKey,
-                price: sellingPrice, mrp: rawMrp,
-                qty, imageLink, thumbnail, imageId, description
-            };
-        }).filter(item => item.code && (item.imageId || item.imageLink || item.thumbnail));
-
-        allProducts = sortProductsByPrice(allProducts);
-        if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
-            currentDepartment = allProducts[0].departmentKey || 'saree';
+        let rawMrp = mrpFromSheet || sellingPrice;
+        if (sellingPrice === 0) {
+            sellingPrice = 14500;
+            rawMrp = 16000;
+        } else if (GLOBAL_DISCOUNT_PERCENTAGE > 0 && GLOBAL_DISCOUNT_PERCENTAGE < 100) {
+            if (rawMrp <= sellingPrice) rawMrp = sellingPrice;
+            sellingPrice = Math.round(rawMrp * (1 - GLOBAL_DISCOUNT_PERCENTAGE / 100));
         }
-        filteredProducts = sortProductsByPrice(getDepartmentProducts());
 
-        wishlist = wishlist.map(savedItem => {
-            const freshItem = allProducts.find(p => p.code === savedItem.code);
-            return freshItem || savedItem;
-        });
-        localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
-        updateWishlistCount();
+        const description = String(getFieldValue(item, ['description', 'product description', 'desc', 'details'])).trim();
+        const customTitle = String(getFieldValue(item, ['product name', 'saree name', 'dupatta name', 'item name', 'name', 'title'])).trim();
+
+        let title = customTitle;
+        if (!title) {
+            if (fabric) {
+                let baseFabric = fabric.trim();
+                if (departmentKey === 'saree') {
+                    baseFabric = baseFabric.replace(/\s+(sarees|saree|saris|sari)\s*$/i, '');
+                } else if (departmentKey === 'dupatta') {
+                    baseFabric = baseFabric.replace(/\s+dup+at+as?\s*$/i, '');
+                }
+                
+                let shortFabric = baseFabric.replace(/\s+silk\s*$/i, '');
+                if (!shortFabric) shortFabric = baseFabric;
+
+                const deptSingular = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
+                title = `${shortFabric} Pen Kalamkari ${deptSingular}`;
+            } else {
+                const deptSingular = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
+                title = `Pen Kalamkari ${deptSingular} ${code}`;
+            }
+        } else {
+            title = title.replace(/Hand-Painted Srikalahasti /gi, '').replace(/Sreekalahasthi /gi, '');
+        }
+
+        return {
+            code, title, fabric, category, department, departmentKey,
+            price: sellingPrice, mrp: rawMrp,
+            qty, imageLink, thumbnail, imageId, description
+        };
+    }).filter(item => item.code && (item.imageId || item.imageLink || item.thumbnail));
+}
+
+// Fetch with timeout to prevent waiting on cold Google Apps Script starts
+async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
+}
+
+// Dual-source API fetch: Google Apps Script -> Fast Published CSV Fallback
+async function fetchFreshCatalogData() {
+    let rawData = null;
+
+    try {
+        const apiRes = await fetchWithTimeout(APPS_SCRIPT_API_URL, { cache: 'no-cache' }, 2500);
+        if (apiRes.ok) {
+            rawData = await apiRes.json();
+        }
+    } catch (e) {
+        console.warn('Apps Script cold/timeout, using fast CSV fallback...', e);
+    }
+
+    if (!rawData || !rawData.length) {
+        try {
+            const csvResp = await fetch(PRIMARY_CSV_URL);
+            if (!csvResp.ok) throw new Error('Primary CSV error');
+            const csvText = await csvResp.text();
+            const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+            rawData = parsed.data || [];
+        } catch (err) {
+            const backupResp = await fetch(BACKUP_CSV_URL);
+            const backupText = await backupResp.text();
+            const parsed = Papa.parse(backupText, { header: true, skipEmptyLines: true });
+            rawData = parsed.data || [];
+        }
+    }
+
+    return rawData;
+}
+
+// Main catalog loader with background revalidation
+async function loadAndApplyCatalog(isBackgroundSync = false) {
+    try {
+        if (!isBackgroundSync && elements.spinner) {
+            elements.spinner.style.display = 'block';
+        }
+
+        const freshRawData = await fetchFreshCatalogData();
+        if (!freshRawData || !freshRawData.length) return;
+
+        const processed = processRawCatalogData(freshRawData);
+        if (!processed.length) return;
+
+        const currentSignature = JSON.stringify(allProducts.map(p => ({ c: p.code, p: p.price, q: p.qty, f: p.fabric })));
+        const newSignature = JSON.stringify(processed.map(p => ({ c: p.code, p: p.price, q: p.qty, f: p.fabric })));
+
+        allProducts = sortProductsByPrice(processed);
+        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(freshRawData));
+        localStorage.setItem(CACHE_TIME_KEY, String(Date.now()));
+
+        if (currentSignature !== newSignature || !isBackgroundSync) {
+            if (!getDepartmentProducts(currentDepartment).length && allProducts.length) {
+                currentDepartment = allProducts[0].departmentKey || 'saree';
+            }
+            filteredProducts = sortProductsByPrice(getDepartmentProducts());
+
+            wishlist = wishlist.map(savedItem => {
+                const freshItem = allProducts.find(p => p.code === savedItem.code);
+                return freshItem || savedItem;
+            });
+            localStorage.setItem('kalamkariWishlist', JSON.stringify(wishlist));
+            updateWishlistCount();
+
+            const params = new URLSearchParams(window.location.search);
+            const currentFabricParam = params.get('fabric') || 'all';
+
+            updateDepartmentUI();
+            renderFilterButtons(currentFabricParam);
+            syncFabricFilterUI(currentFabricParam);
+        }
 
         if (elements.spinner) elements.spinner.style.display = 'none';
-        updateDepartmentUI();
-        renderFilterButtons();
-        filterAndSearchProducts();
     } catch (error) {
-        console.error('Catalogue Load Error:', error);
-        if (elements.spinner) {
+        console.error('Catalog Sync Error:', error);
+        if (elements.spinner && !isBackgroundSync) {
             elements.spinner.innerHTML = `
                 <p style="color: var(--color-temple-crimson); font-weight: 600;">Unable to connect to Google Sheets live catalog.</p>
                 <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.6rem 1.4rem; background: var(--color-temple-crimson); color: white; border: none; cursor: pointer; border-radius: 3px;">Retry</button>
             `;
         }
-    } finally {
-        hideIntroAnimation();
     }
 }
 
@@ -809,7 +832,8 @@ function showView(viewName) {
     }
 }
 
-function renderFilterButtons() {
+// Render fabric buttons preserving the active filter
+function renderFilterButtons(activeKey = null) {
     if (!elements.filtersContainer) return;
     const departmentProducts = getDepartmentProducts();
     const fabricMap = new Map();
@@ -824,11 +848,15 @@ function renderFilterButtons() {
         fabricMap.get(key).prices.push(product.price || 0);
     });
 
+    const params = new URLSearchParams(window.location.search);
+    const targetFilter = (activeKey || params.get('fabric') || 'all').toLowerCase().trim();
+
     elements.filtersContainer.innerHTML = '';
     const activeDepartment = getDepartmentConfig();
     
+    const isAllActive = targetFilter === 'all';
     const allButton = document.createElement('button');
-    allButton.className = 'filter-btn active';
+    allButton.className = `filter-btn ${isAllActive ? 'active' : ''}`;
     allButton.dataset.filter = 'all';
     allButton.innerHTML = `<span class="filter-title">ALL ${activeDepartment.label.toUpperCase()}</span>`;
     elements.filtersContainer.appendChild(allButton);
@@ -841,8 +869,10 @@ function renderFilterButtons() {
             ? `₹${new Intl.NumberFormat('en-IN').format(minPrice)}` 
             : `₹${new Intl.NumberFormat('en-IN').format(minPrice)} - ₹${new Intl.NumberFormat('en-IN').format(maxPrice)}`;
 
+        const isBtnActive = !isAllActive && (targetFilter === key || key.includes(targetFilter) || targetFilter.includes(key));
+
         const button = document.createElement('button');
-        button.className = 'filter-btn';
+        button.className = `filter-btn ${isBtnActive ? 'active' : ''}`;
         button.dataset.filter = key;
         button.innerHTML = `
             <span class="filter-title">${entry.label.toUpperCase()}</span>
@@ -873,7 +903,7 @@ function syncFabricFilterUI(fabricParam) {
 
     buttons.forEach(btn => {
         const btnFilter = String(btn.dataset.filter || '').toLowerCase().replace(/\s+/g, ' ').trim();
-        if (btnFilter === cleanParam) {
+        if (cleanParam !== 'all' && (btnFilter === cleanParam || btnFilter.includes(cleanParam) || cleanParam.includes(btnFilter))) {
             btn.classList.add('active');
             matched = true;
         } else {
@@ -992,12 +1022,14 @@ function renderWishlist() {
     }
 }
 
+// Strict-match fabric filtering to completely prevent cross-fabric mixing
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
     const activeFilterBtn = document.querySelector('.filter-btn.active');
     const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().trim() : 'all';
     
     filteredProducts = getDepartmentProducts().filter(product => {
+        // 1. Search filter
         const matchesSearch = !searchTerm ? true : (
             (product.code && product.code.toLowerCase().includes(searchTerm)) ||
             (product.fabric && product.fabric.toLowerCase().includes(searchTerm)) ||
@@ -1005,10 +1037,42 @@ function filterAndSearchProducts() {
             (product.description && product.description.toLowerCase().includes(searchTerm))
         );
             
+        // 2. Strict fabric filter
         let matchesFilter = true;
         if (filterTerm !== 'all') {
             const prodFabric = (product.fabric || '').toLowerCase().replace(/\s+/g, ' ').trim();
-            matchesFilter = prodFabric.includes(filterTerm.replace(/\s+/g, ' ').trim());
+            
+            const isKanchipuramFilter = filterTerm.includes('kanchipuram') || filterTerm.includes('kanchi');
+            const isBangaloreFilter = filterTerm.includes('bangalore') || filterTerm.includes('bengaluru');
+            const isCrapeFilter = filterTerm.includes('crape') || filterTerm.includes('crepe');
+            const isTussarFilter = filterTerm.includes('tussar') || filterTerm.includes('tusser');
+            const isGadwalFilter = filterTerm.includes('gadwal');
+            const isIkkatFilter = filterTerm.includes('ikkat') || filterTerm.includes('ikat');
+            const isOrganzaFilter = filterTerm.includes('organza');
+            const isChanderiFilter = filterTerm.includes('chanderi');
+            const isGeorgetteFilter = filterTerm.includes('georgette');
+
+            if (isKanchipuramFilter) {
+                matchesFilter = prodFabric.includes('kanchipuram') || prodFabric.includes('kanchi');
+            } else if (isBangaloreFilter) {
+                matchesFilter = prodFabric.includes('bangalore') || prodFabric.includes('bengaluru');
+            } else if (isCrapeFilter) {
+                matchesFilter = prodFabric.includes('crape') || prodFabric.includes('crepe');
+            } else if (isTussarFilter) {
+                matchesFilter = prodFabric.includes('tussar') || prodFabric.includes('tusser');
+            } else if (isGadwalFilter) {
+                matchesFilter = prodFabric.includes('gadwal');
+            } else if (isIkkatFilter) {
+                matchesFilter = prodFabric.includes('ikkat') || prodFabric.includes('ikat');
+            } else if (isOrganzaFilter) {
+                matchesFilter = prodFabric.includes('organza');
+            } else if (isChanderiFilter) {
+                matchesFilter = prodFabric.includes('chanderi');
+            } else if (isGeorgetteFilter) {
+                matchesFilter = prodFabric.includes('georgette');
+            } else {
+                matchesFilter = prodFabric === filterTerm || prodFabric.includes(filterTerm);
+            }
         }
         
         return matchesSearch && matchesFilter;
@@ -1154,7 +1218,7 @@ function handlePopState() {
         renderWishlist();
         showView('wishlist');
     } else {
-        renderFilterButtons();
+        renderFilterButtons(fabricParam);
         syncFabricFilterUI(fabricParam);
         showView('catalogue'); 
     }
@@ -1174,8 +1238,36 @@ async function init() {
     updateWishlistCount();
     setupEventListeners();
 
-    await fetchProducts();
+    // 1. INSTANT LOCAL STORAGE RENDER
+    const cachedDataStr = localStorage.getItem(CACHE_STORAGE_KEY);
+    let hasRenderedFromCache = false;
 
+    if (cachedDataStr) {
+        try {
+            const cachedRaw = JSON.parse(cachedDataStr);
+            if (Array.isArray(cachedRaw) && cachedRaw.length > 0) {
+                const processed = processRawCatalogData(cachedRaw);
+                if (processed.length > 0) {
+                    allProducts = sortProductsByPrice(processed);
+                    filteredProducts = sortProductsByPrice(getDepartmentProducts());
+                    
+                    if (elements.spinner) elements.spinner.style.display = 'none';
+                    updateDepartmentUI();
+                    
+                    const params = new URLSearchParams(window.location.search);
+                    const initFabric = params.get('fabric') || 'all';
+                    renderFilterButtons(initFabric);
+                    syncFabricFilterUI(initFabric);
+                    
+                    hasRenderedFromCache = true;
+                }
+            }
+        } catch (e) {
+            localStorage.removeItem(CACHE_STORAGE_KEY);
+        }
+    }
+
+    // 2. RESTORE ROUTE STATE
     const params = new URLSearchParams(window.location.search);
     const initialDept = normalizeDepartment(params.get('department')) || currentDepartment;
     const initialFabric = params.get('fabric') || 'all';
@@ -1184,7 +1276,16 @@ async function init() {
     navigateToState(initialDept, initialFabric, hash, false);
     handlePopState(); 
     isInitialLoad = false;
-    hideIntroAnimation();
+
+    // 3. BACKGROUND REVALIDATION OR INITIAL FETCH
+    if (hasRenderedFromCache) {
+        const lastSync = Number(localStorage.getItem(CACHE_TIME_KEY) || 0);
+        if (Date.now() - lastSync > CACHE_TTL_MS) {
+            loadAndApplyCatalog(true);
+        }
+    } else {
+        await loadAndApplyCatalog(false);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
