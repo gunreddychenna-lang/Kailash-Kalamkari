@@ -20,8 +20,8 @@ const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/s
 const SHARE_ICON_SVG = `<svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>`;
 
 const DEPARTMENTS = [
-    { key: 'saree', label: 'Kalamkari Sarees', singular: 'Kalamkari Saree' },
-    { key: 'dupatta', label: 'Kalamkari Dupattas', singular: 'Kalamkari Dupatta' }
+    { key: 'saree', label: 'Sarees', singular: 'Saree' },
+    { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
 const CACHE_STORAGE_KEY = 'kailash_catalog_v6';
@@ -868,7 +868,7 @@ function renderFilterButtons(activeKey = null) {
     });
 
     const params = new URLSearchParams(window.location.search);
-    const targetFilter = (activeKey || params.get('fabric') || 'all').toLowerCase().trim();
+    const targetFilter = (activeKey || params.get('fabric') || 'all').toLowerCase().replace(/\s+/g, ' ').trim();
 
     elements.filtersContainer.innerHTML = '';
     const activeDepartment = getDepartmentConfig();
@@ -888,7 +888,8 @@ function renderFilterButtons(activeKey = null) {
             ? `₹${new Intl.NumberFormat('en-IN').format(minPrice)}` 
             : `₹${new Intl.NumberFormat('en-IN').format(minPrice)} - ₹${new Intl.NumberFormat('en-IN').format(maxPrice)}`;
 
-        const isBtnActive = !isAllActive && (targetFilter === key || key.includes(targetFilter) || targetFilter.includes(key));
+        // Strict exact match for active filter button state
+        const isBtnActive = !isAllActive && (targetFilter === key);
 
         const button = document.createElement('button');
         button.className = `filter-btn ${isBtnActive ? 'active' : ''}`;
@@ -922,7 +923,8 @@ function syncFabricFilterUI(fabricParam) {
 
     buttons.forEach(btn => {
         const btnFilter = String(btn.dataset.filter || '').toLowerCase().replace(/\s+/g, ' ').trim();
-        if (cleanParam !== 'all' && (btnFilter === cleanParam || btnFilter.includes(cleanParam) || cleanParam.includes(btnFilter))) {
+        // Strict exact match
+        if (cleanParam !== 'all' && btnFilter === cleanParam) {
             btn.classList.add('active');
             matched = true;
         } else {
@@ -1045,7 +1047,7 @@ function renderWishlist() {
 function filterAndSearchProducts() {
     const searchTerm = elements.searchInput ? elements.searchInput.value.toLowerCase().trim() : '';
     const activeFilterBtn = document.querySelector('.filter-btn.active');
-    const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().trim() : 'all';
+    const filterTerm = activeFilterBtn ? activeFilterBtn.dataset.filter.toLowerCase().replace(/\s+/g, ' ').trim() : 'all';
     
     filteredProducts = getDepartmentProducts().filter(product => {
         // 1. Search matching
@@ -1056,11 +1058,11 @@ function filterAndSearchProducts() {
             (product.description && product.description.toLowerCase().includes(searchTerm))
         );
             
-        // 2. Strict fabric matching
+        // 2. Strict fabric matching (Exact match only)
         let matchesFilter = true;
         if (filterTerm !== 'all') {
             const prodFabric = (product.fabric || '').toLowerCase().replace(/\s+/g, ' ').trim();
-            matchesFilter = prodFabric === filterTerm || prodFabric.includes(filterTerm) || filterTerm.includes(prodFabric);
+            matchesFilter = (prodFabric === filterTerm);
         }
         
         return matchesSearch && matchesFilter;

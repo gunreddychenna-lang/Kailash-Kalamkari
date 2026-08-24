@@ -341,13 +341,13 @@ img {
     padding: 0 0.8rem;
 }
 
+/* DEPARTMENT BAR CONTAINER (SEPARATE BOXES) */
 .department-bar {
     display: flex;
-    gap: 0.6rem;
-    background: rgba(245, 238, 223, 0.7);
-    padding: 0.35rem 0.8rem;
-    border-radius: 4px;
-    border: 1.5px solid var(--color-royal-gold);
+    gap: 0.75rem;
+    background: transparent;
+    padding: 0.2rem 0.5rem;
+    border: none;
     flex-wrap: nowrap;
     white-space: nowrap;
     justify-content: center;
@@ -361,9 +361,10 @@ img {
     display: none;
 }
 
+/* INDIVIDUAL BUTTON BOXES (MATCHING GALLERY VAULT) */
 .department-btn {
-    background: transparent;
-    border: 1px solid transparent;
+    background: var(--color-milk-ivory);
+    border: 1.5px solid var(--color-royal-gold);
     padding: 0.65rem 1.4rem;
     font-family: var(--font-heritage);
     font-size: 0.98rem;
@@ -378,7 +379,8 @@ img {
     gap: 0.5rem;
     white-space: nowrap;
     flex-shrink: 0;
-    border-radius: 3px;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(86, 11, 2, 0.04);
 }
 
 .btn-traditional-dot {
@@ -390,12 +392,22 @@ img {
     transition: opacity 0.3s ease;
 }
 
+/* HOVER EFFECT ON ALL DEPARTMENT BOXES */
+.department-btn:hover {
+    background: var(--color-parchment);
+    border-color: var(--color-temple-crimson);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(86, 11, 2, 0.08);
+}
+
+/* ACTIVE SELECTED DEPARTMENT BOX */
 .department-btn.active {
     color: var(--color-milk-ivory);
     background-color: var(--color-temple-crimson);
     border-color: var(--color-royal-gold);
     font-weight: 800;
-    box-shadow: 0 2px 8px rgba(86, 11, 2, 0.2);
+    box-shadow: 0 3px 10px rgba(86, 11, 2, 0.25);
+    transform: none;
 }
 
 .department-btn.active .btn-traditional-dot {
@@ -403,17 +415,18 @@ img {
     background: var(--color-royal-gold);
 }
 
+/* GALLERY VAULT BOX SPECIFICS */
 .wishlist-dept-btn {
+    background: var(--color-milk-ivory);
     border: 1.5px solid var(--color-royal-gold);
     color: var(--color-temple-crimson);
-    background: var(--color-milk-ivory);
     font-weight: 800;
 }
 
 .wishlist-dept-btn:hover {
     background-color: var(--color-temple-crimson);
     color: var(--color-milk-ivory);
-    border-color: var(--color-temple-crimson);
+    border-color: var(--color-royal-gold);
 }
 
 .filters-outer-container {
@@ -1537,7 +1550,6 @@ body.details-mode .main-header {
     .department-bar {
         padding: 0.35rem 0.5rem;
         gap: 0.4rem;
-        border-width: 1.5px;
     }
 
     .department-btn {
