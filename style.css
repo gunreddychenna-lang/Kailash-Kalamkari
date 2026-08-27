@@ -341,34 +341,30 @@ img {
     padding: 0 0.8rem;
 }
 
-/* DEPARTMENT BAR CONTAINER (SEPARATE BOXES) */
 .department-bar {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.4rem;
+    width: 100%;
     background: transparent;
-    padding: 0.2rem 0.5rem;
+    padding: 0;
     border: none;
-    flex-wrap: nowrap;
-    white-space: nowrap;
-    justify-content: center;
-    align-items: center;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    justify-content: space-between;
+    align-items: stretch;
 }
 
 .department-bar::-webkit-scrollbar {
     display: none;
 }
 
-/* INDIVIDUAL BUTTON BOXES (MATCHING GALLERY VAULT) */
 .department-btn {
+    flex: 1 1 0;
+    min-width: 0;
     background: var(--color-milk-ivory);
     border: 1.5px solid var(--color-royal-gold);
-    padding: 0.65rem 1.4rem;
+    padding: 0.65rem 0.25rem;
     font-family: var(--font-heritage);
-    font-size: 0.98rem;
-    letter-spacing: 0.08em;
+    font-size: clamp(0.74rem, 2.3vw, 0.95rem);
+    letter-spacing: 0.02em;
     color: var(--color-temple-crimson);
     font-weight: 800;
     cursor: pointer;
@@ -376,9 +372,8 @@ img {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.3rem;
     white-space: nowrap;
-    flex-shrink: 0;
     border-radius: 4px;
     box-shadow: 0 2px 6px rgba(86, 11, 2, 0.04);
 }
