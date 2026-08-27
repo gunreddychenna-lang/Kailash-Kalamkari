@@ -6,7 +6,7 @@ from datetime import datetime
 API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec'
 TODAY = datetime.today().strftime('%Y-%m-%d')
 
-print("Generating SEO-rich sitemap...")
+print("Fetching products from Google Sheet...")
 req = urllib.request.Request(API_URL, headers={'User-Agent': 'Mozilla/5.0'})
 with urllib.request.urlopen(req) as response:
     products = json.loads(response.read().decode('utf-8'))
@@ -41,7 +41,7 @@ for p in products:
     if not code:
         continue
 
-    # Create clean slug: srikalahasthi-pen-kalamkari-fabric-code
+    # Clean slug
     clean_fabric = re.sub(r'[^a-z0-9]+', '-', fabric.lower()).strip('-')
     dept = 'dupatta' if 'dupatta' in fabric.lower() or 'duppata' in fabric.lower() else 'saree'
     slug = f"srikalahasthi-pen-kalamkari-{clean_fabric}-{code}"
@@ -49,13 +49,15 @@ for p in products:
     img_tag = ""
     if file_id:
         cdn_img_url = f"https://lh3.googleusercontent.com/d/{file_id}=w1400"
+        img_title = fabric.replace("&", "&amp;")
         img_tag = f"""
     <image:image>
       <image:loc>{cdn_img_url}</image:loc>
-      <image:title>Kailash Kalamkari {fabric} - {code}</image:title>
-      <image:caption>Authentic Handpainted Srikalahasti Pen Kalamkari {fabric}</image:caption>
+      <image:title>Kailash Kalamkari {img_title} - {code}</image:title>
+      <image:caption>Authentic Handpainted Srikalahasti Pen Kalamkari {img_title}</image:caption>
     </image:image>"""
 
+    # NOTE: Using &amp; instead of raw & for XML validity
     entry = f"""  <url>
     <loc>https://www.kailash-kalamkari.com/?department={dept}&amp;product={slug}</loc>
     <lastmod>{TODAY}</lastmod>
@@ -75,4 +77,4 @@ xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 with open('sitemap.xml', 'w', encoding='utf-8') as f:
     f.write(xml_content)
 
-print(f"✅ Created sitemap.xml with {count} rich keyword URLs!")
+print(f"✅ Created sitemap.xml with {count} valid XML product URLs!")
