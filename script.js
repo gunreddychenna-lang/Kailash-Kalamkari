@@ -1217,7 +1217,7 @@ async function init() {
     updateWishlistCount();
     setupEventListeners();
 
-    // 1. INSTANT LOCAL STORAGE RENDER
+    // 1. Check instant local storage cache
     const cachedDataStr = localStorage.getItem(CACHE_STORAGE_KEY);
     let hasRenderedFromCache = false;
 
@@ -1229,7 +1229,6 @@ async function init() {
                 if (processed.length > 0) {
                     allProducts = sortProductsByPrice(processed);
                     filteredProducts = sortProductsByPrice(getDepartmentProducts());
-                    
                     if (elements.spinner) elements.spinner.style.display = 'none';
                     updateDepartmentUI();
                     
@@ -1239,6 +1238,8 @@ async function init() {
                     syncFabricFilterUI(initFabric);
                     
                     hasRenderedFromCache = true;
+                    // Route immediately if cache exists
+                    handlePopState();
                 }
             }
         } catch (e) {
@@ -1246,19 +1247,20 @@ async function init() {
         }
     }
 
-    // 2. ROUTE TO DIRECT SEARCH QUERY OR INITIAL STATE
-    handlePopState(); 
-    isInitialLoad = false;
-
-    // 3. BACKGROUND REVALIDATION
-    if (hasRenderedFromCache) {
+    // 2. If NO cache (First-time visitor / Googlebot / New link), WAIT for catalog to load FIRST
+    if (!hasRenderedFromCache) {
+        await loadAndApplyCatalog(false);
+        // Route after products are fully loaded
+        handlePopState();
+    } else {
+        // Background sync for returning users
         const lastSync = Number(localStorage.getItem(CACHE_TIME_KEY) || 0);
         if (Date.now() - lastSync > CACHE_TTL_MS) {
             loadAndApplyCatalog(true);
         }
-    } else {
-        await loadAndApplyCatalog(false);
     }
+
+    isInitialLoad = false;
 }
 
 document.addEventListener('DOMContentLoaded', init);
