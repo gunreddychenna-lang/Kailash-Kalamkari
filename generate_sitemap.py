@@ -36,7 +36,10 @@ count = 0
 for p in products:
     code = str(p.get('Code') or p.get('code') or p.get('Style Code') or '').strip()
     fabric = str(p.get('Fabric') or p.get('fabric') or 'Silk').strip()
-    file_id = str(p.get('image id') or p.get('imageId') or '').strip()
+    
+    # Strip any existing '=w...' or query parameters from the ID
+    raw_id = str(p.get('image id') or p.get('imageId') or '').strip()
+    file_id = re.sub(r'(=w\d+.*|\?.*)$', '', raw_id)
     
     if not code:
         continue
@@ -57,7 +60,7 @@ for p in products:
       <image:caption>Authentic Handpainted Srikalahasti Pen Kalamkari {img_title}</image:caption>
     </image:image>"""
 
-    # NOTE: Using &amp; instead of raw & for XML validity
+    # Using &amp; for valid XML
     entry = f"""  <url>
     <loc>https://www.kailash-kalamkari.com/?department={dept}&amp;product={slug}</loc>
     <lastmod>{TODAY}</lastmod>
