@@ -37,30 +37,29 @@ for p in products:
     code = str(p.get('Code') or p.get('code') or p.get('Style Code') or '').strip()
     fabric = str(p.get('Fabric') or p.get('fabric') or 'Silk').strip()
     
-    # Strip any existing '=w...' or query parameters from the ID
     raw_id = str(p.get('image id') or p.get('imageId') or '').strip()
     file_id = re.sub(r'(=w\d+.*|\?.*)$', '', raw_id)
     
     if not code:
         continue
 
-    # Clean slug
-    clean_fabric = re.sub(r'[^a-z0-9]+', '-', fabric.lower()).strip('-')
+    clean_fabric = re.sub(r'(?i)\b(sarees?|dupp?att?as?)\b', '', fabric).strip()
     dept = 'dupatta' if 'dupatta' in fabric.lower() or 'duppata' in fabric.lower() else 'saree'
-    slug = f"srikalahasthi-pen-kalamkari-{clean_fabric}-{code}"
+    dept_label = 'Dupatta' if dept == 'dupatta' else 'Saree'
+    slug_fabric = re.sub(r'[^a-z0-9]+', '-', clean_fabric.lower()).strip('-')
+    slug = f"srikalahasthi-pen-kalamkari-{slug_fabric}-{code}"
 
     img_tag = ""
     if file_id:
         cdn_img_url = f"https://lh3.googleusercontent.com/d/{file_id}=w1400"
-        img_title = fabric.replace("&", "&amp;")
+        clean_fabric_escaped = clean_fabric.replace("&", "&amp;")
         img_tag = f"""
     <image:image>
       <image:loc>{cdn_img_url}</image:loc>
-      <image:title>Kailash Kalamkari {img_title} - {code}</image:title>
-      <image:caption>Authentic Handpainted Srikalahasti Pen Kalamkari {img_title}</image:caption>
+      <image:title>Srikalahasthi Pen Kalamkari Hand-Painted {clean_fabric_escaped} {dept_label} - {code}</image:title>
+      <image:caption>Authentic Srikalahasti Pen Kalamkari {clean_fabric_escaped} {dept_label} Kailash Kalamkari</image:caption>
     </image:image>"""
 
-    # Using &amp; for valid XML
     entry = f"""  <url>
     <loc>https://www.kailash-kalamkari.com/?department={dept}&amp;product={slug}</loc>
     <lastmod>{TODAY}</lastmod>
@@ -80,4 +79,4 @@ xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 with open('sitemap.xml', 'w', encoding='utf-8') as f:
     f.write(xml_content)
 
-print(f"✅ Created sitemap.xml with {count} valid XML product URLs!")
+print(f"✅ Created sitemap.xml with {count} search-optimized product URLs!")

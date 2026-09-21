@@ -11,6 +11,9 @@ const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmep
 const PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv';
 const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv';
 
+// LIVE CLOUDFLARE EDGE CDN (FREE, UNLIMITED BANDWIDTH, HIGH DEFINITION)
+const IMAGE_CDN_URL = 'https://kalamkari-images.kailashakalamkariacc.workers.dev';
+
 const CONTACT_PHONE_NUMBER = '919063374020';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
 
@@ -21,8 +24,8 @@ const DEPARTMENTS = [
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
-const CACHE_STORAGE_KEY = 'kailash_catalog_v12';
-const CACHE_TIME_KEY = 'kailash_catalog_time_v12';
+const CACHE_STORAGE_KEY = 'kailash_catalog_v13';
+const CACHE_TIME_KEY = 'kailash_catalog_time_v13';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
@@ -93,28 +96,25 @@ function extractDriveFileId(str) {
     return match && match[1] ? match[1] : null;
 }
 
-// 2. DIRECT GOOGLE EDGE CDN IMAGE URL GENERATOR
-function getProductImageUrl(product, width = 500) {
+// 2. DIRECT CLOUDFLARE EDGE CDN IMAGE URL GENERATOR
+function getProductImageUrl(product, width = 2048) {
     if (!product) return DEFAULT_IMAGE;
     
-    const fileId = extractDriveFileId(product.imageId) || 
-                   extractDriveFileId(product['File ID']) ||
+    const fileId = extractDriveFileId(product["File ID"]) ||
+                   extractDriveFileId(product.imageId) || 
                    extractDriveFileId(product['image id']) ||
+                   extractDriveFileId(product["Drive Link"]) ||
                    extractDriveFileId(product.imageLink) || 
                    extractDriveFileId(product['image link']) ||
-                   extractDriveFileId(product['Drive Link']) ||
-                   extractDriveFileId(product['Thumbnail Link']) ||
+                   extractDriveFileId(product["Thumbnail Link"]) ||
                    extractDriveFileId(product.thumbnail);
 
     if (fileId) {
-        return `https://lh3.googleusercontent.com/d/${fileId}=w${width}`;
+        // Delivers crystal-clear 2048px photos via Cloudflare CDN (Free & Unlimited)
+        return `${IMAGE_CDN_URL}/${fileId}`;
     }
     
     let rawUrl = (product.thumbnail || product['Thumbnail Link'] || product.imageLink || product['image link'] || product['Drive Link'] || '').trim();
-    if (rawUrl.startsWith('uc?export=view')) {
-        rawUrl = 'https://drive.google.com/' + rawUrl;
-    }
-
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
         return rawUrl;
     }
@@ -122,35 +122,16 @@ function getProductImageUrl(product, width = 500) {
     return DEFAULT_IMAGE;
 }
 
-// 3. MULTI-TIER RESILIENT IMAGE FALLBACK
-function setupImageFallback(imgElement, product, width = 500) {
-    const fileId = extractDriveFileId(product.imageId) || 
-                   extractDriveFileId(product['File ID']) ||
-                   extractDriveFileId(product['image id']) ||
-                   extractDriveFileId(product.imageLink) || 
-                   extractDriveFileId(product['image link']) ||
-                   extractDriveFileId(product['Drive Link']) ||
-                   extractDriveFileId(product['Thumbnail Link']) ||
-                   extractDriveFileId(product.thumbnail);
-
-    if (!fileId) return;
-
+// 3. RESILIENT IMAGE FALLBACK
+function setupImageFallback(imgElement, product, width = 2048) {
     imgElement.onerror = () => {
-        if (!imgElement.dataset.fallbackAttempted) {
-            imgElement.dataset.fallbackAttempted = "1";
-            imgElement.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
-        } else if (imgElement.dataset.fallbackAttempted === "1") {
-            imgElement.dataset.fallbackAttempted = "2";
-            imgElement.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
-        } else {
-            imgElement.src = DEFAULT_IMAGE;
-        }
+        imgElement.src = DEFAULT_IMAGE;
     };
 }
 
 // 4. GENERATE CLEAN SEO KEYWORD URL SLUG
 function getProductSlug(product) {
-    const cleanFabric = (product.fabric || 'silk').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const cleanFabric = (product.fabric || 'silk').toLowerCase().replace(/\b(sarees?|dupp?att?as?)\b/gi, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'silk';
     return `srikalahasthi-pen-kalamkari-${cleanFabric}-${product.code}`;
 }
 
@@ -160,12 +141,17 @@ function getProductFullUrl(product) {
     return `https://www.kailash-kalamkari.com/?department=${dept}&product=${slug}`;
 }
 
-// 5. UPDATE SEO META TAGS & PRODUCT SCHEMA
+// 5. UPDATE SEO META TAGS & EXACT GOOGLE MERCHANT SCHEMA
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
-    const pageTitle = `${product.title} (Code: ${product.code}) — Srikalahasti Pen Kalamkari | Kailash Kalamkari`;
-    const pageDesc = `Buy authentic hand-painted ${product.fabric} Kalamkari artwork (${product.title}) with natural organic mineral dyes. Code: ${product.code}. Direct from Kailash Kalamkari master artisans in Srikalahasti.`;
-    const imageUrl = getProductImageUrl(product, 1400);
+    const deptLabel = product.departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
+    const cleanFabric = (product.fabric || 'Pure Silk').replace(/\b(sarees?|dupp?att?as?)\b/gi, '').trim() || 'Pure Silk';
+    
+    // Matches Google Merchant Center Feed Title format
+    const fullOptimizedTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari Hand-Painted ${cleanFabric} ${deptLabel} - ${product.code}`;
+    const pageTitle = `${fullOptimizedTitle} | Kailash Kalamkari Srikalahasti`;
+    const pageDesc = `Buy authentic hand-painted Srikalahasthi (Srikalahasti) Pen Kalamkari ${cleanFabric} ${deptLabel} (${product.code}) with 100% natural organic vegetable dyes directly from Kailash Kalamkari master artisans since 1984.`;
+    const imageUrl = getProductImageUrl(product, 2048);
     const productUrl = getProductFullUrl(product);
 
     document.title = pageTitle;
@@ -197,17 +183,21 @@ function updateGoogleImageSchemaAndMeta(product) {
         const schemaData = {
             "@context": "https://schema.org/",
             "@type": "Product",
-            "name": `Kailash Kalamkari ${product.title}`,
+            "name": fullOptimizedTitle,
             "image": [imageUrl, getProductImageUrl(product, 600)],
             "description": product.description || pageDesc,
             "sku": product.code,
             "mpn": product.code,
-            "brand": { "@type": "Brand", "name": "Kailash Kalamkari" },
+            "brand": { 
+                "@type": "Brand", 
+                "name": "Kailash Kalamkari" 
+            },
             "offers": {
                 "@type": "Offer",
                 "url": productUrl,
                 "priceCurrency": "INR",
                 "price": product.price,
+                "itemCondition": "https://schema.org/NewCondition",
                 "availability": product.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
             }
         };
@@ -357,7 +347,7 @@ function goBack() {
     }
 }
 
-// 6. PROCESS RAW CATALOG DATA & READ FABRIC COLUMN AS TITLE
+// 6. PROCESS RAW CATALOG DATA & CLEAN PRODUCT TITLES
 function processRawCatalogData(rawData) {
     const getFieldValue = (item, keys) => {
         const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -389,15 +379,17 @@ function processRawCatalogData(rawData) {
     return rawData.map(item => {
         const code = String(getFieldValue(item, ['code', 'style code', 'stylecode', 'item code', 'barcode', 'sku'])).trim();
         
-        // Saree / Fabric name from sheet
-        const sareeName = String(getFieldValue(item, ['fabric', 'fabric type', 'material', 'saree name', 'name', 'title']) || 'Kalamkari Saree').trim();
-        const title = sareeName;
-
+        const rawFabric = String(getFieldValue(item, ['fabric', 'fabric type', 'material', 'saree name', 'name', 'title']) || 'Pure Silk').trim();
         const category = String(getFieldValue(item, ['category', 'type', 'section']) || 'Uncategorized').trim();
         const department = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
         const description = String(getFieldValue(item, ['description', 'product description', 'desc', 'details'])).trim();
 
-        const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(sareeName, category, code, description) || 'saree';
+        const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(rawFabric, category, code, description) || 'saree';
+        const deptLabel = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
+
+        // Clean redundant duplicate suffixes (avoids "Sarees Saree")
+        const cleanFabric = rawFabric.replace(/\b(sarees?|dupp?att?as?)\b/gi, '').trim() || 'Pure Silk';
+        const title = `${cleanFabric} ${deptLabel}`;
 
         let imageLink = String(getFieldValue(item, ['image link', 'imagelink', 'thumbnail link', 'drive link', 'image', 'photo link', 'thumbnail l'])).trim();
         const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link', 'thumb', 'thumbnail l'])).trim() || imageLink;
@@ -420,7 +412,7 @@ function processRawCatalogData(rawData) {
         }
 
         return {
-            code, title, fabric: sareeName, category, department, departmentKey,
+            code, title, fabric: cleanFabric, category, department, departmentKey,
             price: sellingPrice, mrp: rawMrp,
             qty, imageLink, thumbnail, imageId, description
         };
@@ -562,15 +554,15 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        img.alt = `Kailash Kalamkari ${product.title} Code ${product.code} (${product.fabric})`; 
-        img.title = `Kailash Kalamkari Srikalahasti — ${product.title}`;
+        img.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Code ${product.code}`; 
+        img.title = `Srikalahasthi Pen Kalamkari — ${product.title}`;
         img.loading = 'lazy';
         img.decoding = 'async';
         
-        const primaryUrl = getProductImageUrl(product, 500);
+        const primaryUrl = getProductImageUrl(product, 2048);
         img.src = primaryUrl;
 
-        setupImageFallback(img, product, 500);
+        setupImageFallback(img, product, 2048);
         imageWrapper.appendChild(img);
 
         if (discountPct > 0) {
@@ -826,7 +818,7 @@ function showView(viewName) {
         document.body.classList.remove('details-mode');
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
-            document.title = "Kalamkari Sarees — Hand-Painted Srikalahasti Pen Kalamkari Silk Sarees | Kailash Kalamkari";
+            document.title = "Srikalahasthi Pen Kalamkari Sarees — Hand-Painted Pure Silk Sarees | Kailash Kalamkari";
         } else if (viewName === 'policy') {
             document.title = "Return Policy — Kailash Kalamkari Srikalahasti";
             window.scrollTo(0, 0);
@@ -934,9 +926,9 @@ function showProductDetails(product) {
 
     if (elements.detailImage) {
         delete elements.detailImage.dataset.fallbackAttempted;
-        elements.detailImage.src = getProductImageUrl(product, 1400);
-        elements.detailImage.alt = `Kailash Kalamkari ${product.title}`;
-        setupImageFallback(elements.detailImage, product, 1400);
+        elements.detailImage.src = getProductImageUrl(product, 2048);
+        elements.detailImage.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title}`;
+        setupImageFallback(elements.detailImage, product, 2048);
     }
 
     const detailImgBadge = document.getElementById('detail-image-discount-badge');
@@ -978,7 +970,7 @@ function showProductDetails(product) {
 
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
-    elements.overlayImage.src = getProductImageUrl(product, 1600);
+    elements.overlayImage.src = getProductImageUrl(product, 2048);
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlay.classList.remove('hidden');
     isOverlayZoomed = false;
@@ -1058,7 +1050,7 @@ function buyNow(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('crm_visitor_id') || localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = getProductFullUrl(product);
-    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this authentic hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
 }
@@ -1180,7 +1172,6 @@ function handlePopState() {
     if (hash === '#return-policy' || hash === '#policy') {
         showView('policy');
     } else if (productParam) {
-        // Extract product code from the end of any slug
         const codeMatch = productParam.match(/(?:.*-)?([A-Za-z0-9]+)$/);
         const targetCode = (codeMatch ? codeMatch[1] : productParam).toUpperCase().trim();
         const product = allProducts.find(p => p.code.toUpperCase().trim() === targetCode);
@@ -1238,7 +1229,6 @@ async function init() {
                     syncFabricFilterUI(initFabric);
                     
                     hasRenderedFromCache = true;
-                    // Route immediately if cache exists
                     handlePopState();
                 }
             }
@@ -1247,10 +1237,9 @@ async function init() {
         }
     }
 
-    // 2. If NO cache (First-time visitor / Googlebot / New link), WAIT for catalog to load FIRST
+    // 2. If NO cache, wait for catalog to load first
     if (!hasRenderedFromCache) {
         await loadAndApplyCatalog(false);
-        // Route after products are fully loaded
         handlePopState();
     } else {
         // Background sync for returning users
