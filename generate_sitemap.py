@@ -1,15 +1,83 @@
 import json
 import urllib.request
+import csv
+import io
 import re
+import ssl
 from datetime import datetime
 
-API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec'
-TODAY = datetime.today().strftime('%Y-%m-%d')
+# Multi-Tier Data Endpoints
+APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec'
+PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv'
+BACKUP_CSV_URL  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv'
+IMAGE_CDN_BASE  = 'https://kalamkari-images.kailashakalamkariacc.workers.dev'
 
-print("Fetching products from Google Sheet...")
-req = urllib.request.Request(API_URL, headers={'User-Agent': 'Mozilla/5.0'})
-with urllib.request.urlopen(req) as response:
-    products = json.loads(response.read().decode('utf-8'))
+TODAY = datetime.today().strftime('%Y-%m-%d')
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+def extract_file_id(val):
+    if not val:
+        return ''
+    val = str(val).strip()
+    if re.match(r'^[a-zA-Z0-9_-]{25,50}$', val):
+        return val
+    m = re.search(r'(?:id=|file/d/|/d/|document/d/)([a-zA-Z0-9_-]{25,50})', val)
+    return m.group(1) if m else ''
+
+def fetch_products():
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    
+    # 1. Try Apps Script API
+    try:
+        print("Attempting to connect via Google API...")
+        req = urllib.request.Request(APPS_SCRIPT_URL, headers=headers)
+        with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data and isinstance(data, list):
+                print("✅ Successfully fetched products from API!")
+                return data
+    except Exception as e:
+        print(f"⚠️ API unavailable ({e}). Trying Direct Google Sheets CSV...")
+
+    # 2. Try Primary CSV
+    try:
+        req = urllib.request.Request(PRIMARY_CSV_URL, headers=headers)
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            text = resp.read().decode('utf-8')
+            reader = csv.DictReader(io.StringIO(text))
+            rows = list(reader)
+            if rows:
+                print("✅ Successfully fetched live products from Google Sheets CSV!")
+                return rows
+    except Exception as e:
+        print(f"⚠️ Primary CSV failed ({e}). Trying Backup CSV...")
+
+    # 3. Try Backup CSV
+    try:
+        req = urllib.request.Request(BACKUP_CSV_URL, headers=headers)
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            text = resp.read().decode('utf-8')
+            reader = csv.DictReader(io.StringIO(text))
+            rows = list(reader)
+            if rows:
+                print("✅ Successfully fetched from Backup Google Sheets CSV!")
+                return rows
+    except Exception as e:
+        print(f"❌ Backup CSV failed: {e}")
+
+    # 4. Fallback to existing products.csv on disk
+    try:
+        with open('products.csv', 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            print(f"ℹ️ Loaded {len(rows)} products from local products.csv fallback.")
+            return rows
+    except Exception:
+        return []
+
+products = fetch_products()
 
 sitemap_entries = [
     f"""  <url>
@@ -34,25 +102,27 @@ sitemap_entries = [
 
 count = 0
 for p in products:
-    code = str(p.get('Code') or p.get('code') or p.get('Style Code') or '').strip()
-    fabric = str(p.get('Fabric') or p.get('fabric') or 'Silk').strip()
-    
-    raw_id = str(p.get('image id') or p.get('imageId') or '').strip()
-    file_id = re.sub(r'(=w\d+.*|\?.*)$', '', raw_id)
-    
+    code = str(p.get('Code') or p.get('code') or p.get('Style Code') or p.get('id') or '').strip()
     if not code:
         continue
 
-    clean_fabric = re.sub(r'(?i)\b(sarees?|dupp?att?as?)\b', '', fabric).strip()
+    fabric = str(p.get('Fabric') or p.get('fabric') or 'Pure Silk').strip()
+    raw_img = (p.get('image id') or p.get('imageId') or p.get('image link') or 
+               p.get('imageLink') or p.get('image_link') or p.get('Drive Link') or '')
+    
+    file_id = extract_file_id(raw_img)
+    clean_fabric = re.sub(r'(?i)\b(sarees?|dupp?att?as?)\b', '', fabric).strip() or "Pure Silk"
+    
     dept = 'dupatta' if 'dupatta' in fabric.lower() or 'duppata' in fabric.lower() else 'saree'
     dept_label = 'Dupatta' if dept == 'dupatta' else 'Saree'
-    slug_fabric = re.sub(r'[^a-z0-9]+', '-', clean_fabric.lower()).strip('-')
+    slug_fabric = re.sub(r'[^a-z0-9]+', '-', clean_fabric.lower()).strip('-') or 'silk'
     slug = f"srikalahasthi-pen-kalamkari-{slug_fabric}-{code}"
 
+    clean_fabric_escaped = clean_fabric.replace("&", "&amp;")
+    
     img_tag = ""
     if file_id:
-        cdn_img_url = f"https://lh3.googleusercontent.com/d/{file_id}=w1400"
-        clean_fabric_escaped = clean_fabric.replace("&", "&amp;")
+        cdn_img_url = f"{IMAGE_CDN_BASE}/{file_id}"
         img_tag = f"""
     <image:image>
       <image:loc>{cdn_img_url}</image:loc>
@@ -79,4 +149,4 @@ xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 with open('sitemap.xml', 'w', encoding='utf-8') as f:
     f.write(xml_content)
 
-print(f"✅ Created sitemap.xml with {count} search-optimized product URLs!")
+print(f"🎉 Created sitemap.xml successfully with {count} search-optimized product URLs!")
