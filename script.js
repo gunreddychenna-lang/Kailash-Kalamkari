@@ -15,6 +15,7 @@ const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxA
 const IMAGE_CDN_URL = 'https://kalamkari-images.kailashakalamkariacc.workers.dev';
 
 const CONTACT_PHONE_NUMBER = '919063374020';
+const BASE_DOMAIN = 'https://www.kailash-kalamkari.com';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
 
 const SHARE_ICON_SVG = `<svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>`;
@@ -24,8 +25,8 @@ const DEPARTMENTS = [
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
-const CACHE_STORAGE_KEY = 'kailash_catalog_v13';
-const CACHE_TIME_KEY = 'kailash_catalog_time_v13';
+const CACHE_STORAGE_KEY = 'kailash_catalog_v14';
+const CACHE_TIME_KEY = 'kailash_catalog_time_v14';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
@@ -110,7 +111,6 @@ function getProductImageUrl(product, width = 2048) {
                    extractDriveFileId(product.thumbnail);
 
     if (fileId) {
-        // Delivers crystal-clear 2048px photos via Cloudflare CDN (Free & Unlimited)
         return `${IMAGE_CDN_URL}/${fileId}`;
     }
     
@@ -129,16 +129,26 @@ function setupImageFallback(imgElement, product, width = 2048) {
     };
 }
 
-// 4. GENERATE CLEAN SEO KEYWORD URL SLUG
+// 4. GENERATE CLEAN SEO KEYWORD URL SLUG & FULL LINK
 function getProductSlug(product) {
-    const cleanFabric = (product.fabric || 'silk').toLowerCase().replace(/\b(sarees?|dupp?att?as?)\b/gi, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'silk';
+    const cleanFabric = (product.fabric || 'silk').toLowerCase()
+        .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'silk';
     return `srikalahasthi-pen-kalamkari-${cleanFabric}-${product.code}`;
 }
 
 function getProductFullUrl(product) {
     const slug = getProductSlug(product);
     const dept = product.departmentKey || 'saree';
-    return `https://www.kailash-kalamkari.com/?department=${dept}&product=${slug}`;
+    return `${BASE_DOMAIN}/?department=${dept}&product=${slug}`;
+}
+
+function updateCanonicalUrl(url) {
+    let canonical = document.getElementById('canonical-url') || document.querySelector('link[rel="canonical"]');
+    if (canonical) {
+        canonical.setAttribute('href', url);
+    }
 }
 
 // 5. UPDATE SEO META TAGS & EXACT GOOGLE MERCHANT SCHEMA
@@ -147,7 +157,6 @@ function updateGoogleImageSchemaAndMeta(product) {
     const deptLabel = product.departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
     const cleanFabric = (product.fabric || 'Pure Silk').replace(/\b(sarees?|dupp?att?as?)\b/gi, '').trim() || 'Pure Silk';
     
-    // Matches Google Merchant Center Feed Title format
     const fullOptimizedTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari Hand-Painted ${cleanFabric} ${deptLabel} - ${product.code}`;
     const pageTitle = `${fullOptimizedTitle} | Kailash Kalamkari Srikalahasti`;
     const pageDesc = `Buy authentic hand-painted Srikalahasthi (Srikalahasti) Pen Kalamkari ${cleanFabric} ${deptLabel} (${product.code}) with 100% natural organic vegetable dyes directly from Kailash Kalamkari master artisans since 1984.`;
@@ -155,9 +164,7 @@ function updateGoogleImageSchemaAndMeta(product) {
     const productUrl = getProductFullUrl(product);
 
     document.title = pageTitle;
-    
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if (canonical) canonical.setAttribute('href', productUrl);
+    updateCanonicalUrl(productUrl);
 
     let metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute('content', pageDesc);
@@ -387,7 +394,6 @@ function processRawCatalogData(rawData) {
         const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(rawFabric, category, code, description) || 'saree';
         const deptLabel = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
 
-        // Clean redundant duplicate suffixes (avoids "Sarees Saree")
         const cleanFabric = rawFabric.replace(/\b(sarees?|dupp?att?as?)\b/gi, '').trim() || 'Pure Silk';
         const title = `${cleanFabric} ${deptLabel}`;
 
@@ -514,6 +520,7 @@ async function loadAndApplyCatalog(isBackgroundSync = false) {
     }
 }
 
+// 7. RENDER PRODUCTS WITH CRAWLABLE <a href> ANCHORS
 function renderProducts(products, container, isHorizontal = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -524,16 +531,22 @@ function renderProducts(products, container, isHorizontal = false) {
     }
     
     products.forEach(product => {
-        const card = document.createElement('div');
+        // Semantic <a> tag for Googlebot crawling & PageRank distribution
+        const card = document.createElement('a');
         card.className = 'product-card';
         card.dataset.code = product.code;
         if (product.qty <= 0) card.classList.add('sold-out');
 
         const keywordSlug = getProductSlug(product);
+        const productDept = product.departmentKey || 'saree';
+        const productUrl = `/?department=${productDept}&product=${keywordSlug}`;
+        card.href = productUrl;
 
-        card.onclick = () => {
+        card.onclick = (e) => {
+            e.preventDefault(); // Fast SPA navigation for users without page reload
+
             const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set('department', product.departmentKey || 'saree');
+            newUrl.searchParams.set('department', productDept);
             newUrl.searchParams.set('product', keywordSlug);
             newUrl.hash = '';
 
@@ -594,6 +607,7 @@ function renderProducts(products, container, isHorizontal = false) {
         cardWishlistBtn.className = `card-action-btn card-wishlist-btn ${isInWishlist ? 'active' : ''}`;
         cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
         cardWishlistBtn.title = 'Add to Kalamkari Gallery Vault';
+        cardWishlistBtn.setAttribute('aria-label', 'Save to Gallery Vault');
         
         cardWishlistBtn.onclick = (e) => {
             e.preventDefault();
@@ -605,7 +619,9 @@ function renderProducts(products, container, isHorizontal = false) {
         cardShareBtn.className = 'card-action-btn card-share-btn';
         cardShareBtn.innerHTML = SHARE_ICON_SVG;
         cardShareBtn.title = 'Share Artwork';
+        cardShareBtn.setAttribute('aria-label', 'Share Saree Artwork');
         cardShareBtn.onclick = (e) => {
+            e.preventDefault();
             e.stopPropagation();
             shareProduct(product);
         };
@@ -626,8 +642,8 @@ function renderProducts(products, container, isHorizontal = false) {
                 <span class="product-price">Rs. ${formattedPrice}</span>
             </div>
             <div class="card-actions-row">
-                <button class="card-video-btn">📹 VIDEO CALL</button>
-                <button class="card-buy-btn">🛍️ BUY NOW</button>
+                <button class="card-video-btn" type="button">📹 VIDEO CALL</button>
+                <button class="card-buy-btn" type="button">🛍️ BUY NOW</button>
             </div>
         `;
 
@@ -636,6 +652,7 @@ function renderProducts(products, container, isHorizontal = false) {
 
         if (cardBuyBtn) {
             cardBuyBtn.onclick = (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 buyNow(product);
             };
@@ -643,6 +660,7 @@ function renderProducts(products, container, isHorizontal = false) {
 
         if (cardVideoBtn) {
             cardVideoBtn.onclick = (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 bookVideoCall(product);
             };
@@ -783,11 +801,12 @@ function renderQuickCategoryPills(currentProd = currentProduct) {
         blockTitle.className = 'fabric-block-title';
         blockTitle.innerHTML = `
             <span>${item.label}</span>
-            <button class="view-all-fabric-btn">View All (${item.products.length}) &rarr;</button>
+            <a href="/?department=${targetDept}&fabric=${item.key}" class="view-all-fabric-btn">View All (${item.products.length}) &rarr;</a>
         `;
         
         const viewAllBtn = blockTitle.querySelector('.view-all-fabric-btn');
-        viewAllBtn.onclick = () => {
+        viewAllBtn.onclick = (e) => {
+            e.preventDefault();
             setDepartment(targetDept, { pushState: false });
             navigateToState(targetDept, item.key, '', true);
             syncFabricFilterUI(item.key);
@@ -819,8 +838,10 @@ function showView(viewName) {
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
             document.title = "Srikalahasthi Pen Kalamkari Sarees — Hand-Painted Pure Silk Sarees | Kailash Kalamkari";
+            updateCanonicalUrl(BASE_DOMAIN + '/');
         } else if (viewName === 'policy') {
             document.title = "Return Policy — Kailash Kalamkari Srikalahasti";
+            updateCanonicalUrl(BASE_DOMAIN + '/#return-policy');
             window.scrollTo(0, 0);
         } else {
             window.scrollTo(0, 0);
@@ -850,10 +871,20 @@ function renderFilterButtons(activeKey = null) {
     const activeDepartment = getDepartmentConfig();
     
     const isAllActive = targetFilter === 'all';
-    const allButton = document.createElement('button');
+    const allButton = document.createElement('a');
+    allButton.href = `/?department=${currentDepartment}`;
     allButton.className = `filter-btn ${isAllActive ? 'active' : ''}`;
     allButton.dataset.filter = 'all';
     allButton.innerHTML = `<span class="filter-title">ALL ${activeDepartment.label.toUpperCase()}</span>`;
+    allButton.onclick = (e) => {
+        e.preventDefault();
+        elements.filtersContainer.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        allButton.classList.add('active');
+        navigateToState(currentDepartment, 'all', '', true);
+        filterAndSearchProducts();
+        showView('catalogue');
+        scrollToDepartment(true);
+    };
     elements.filtersContainer.appendChild(allButton);
 
     fabricMap.forEach((entry, key) => {
@@ -866,25 +897,24 @@ function renderFilterButtons(activeKey = null) {
 
         const isBtnActive = !isAllActive && (targetFilter === key);
 
-        const button = document.createElement('button');
+        const button = document.createElement('a');
+        button.href = `/?department=${currentDepartment}&fabric=${key}`;
         button.className = `filter-btn ${isBtnActive ? 'active' : ''}`;
         button.dataset.filter = key;
         button.innerHTML = `
             <span class="filter-title">${entry.label.toUpperCase()}</span>
             <span class="filter-price">${priceText}</span>
         `;
-        elements.filtersContainer.appendChild(button);
-    });
-
-    elements.filtersContainer.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        button.onclick = (e) => {
+            e.preventDefault();
             elements.filtersContainer.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            navigateToState(currentDepartment, btn.dataset.filter, '', true);
+            button.classList.add('active');
+            navigateToState(currentDepartment, button.dataset.filter, '', true);
             filterAndSearchProducts();
             showView('catalogue');
             scrollToDepartment(true);
-        });
+        };
+        elements.filtersContainer.appendChild(button);
     });
 }
 
@@ -1145,8 +1175,9 @@ function setupEventListeners() {
     }
 
     document.querySelectorAll('.department-btn').forEach(element => {
-        element.addEventListener('click', () => {
+        element.addEventListener('click', (e) => {
             if (element.id === 'wishlist-trigger') return;
+            e.preventDefault();
             setDepartment(element.dataset.department, { pushState: true }); 
             showView('catalogue');
         });
@@ -1158,7 +1189,7 @@ function setupEventListeners() {
     window.addEventListener('popstate', handlePopState); 
 }
 
-// 7. HANDLE DIRECT URL CRAWLING & ROUTING
+// 8. HANDLE DIRECT URL CRAWLING & DEEP ROUTING
 function handlePopState() {
     const params = new URLSearchParams(window.location.search);
     const productParam = params.get('product') || params.get('code') || params.get('id');
@@ -1208,7 +1239,7 @@ async function init() {
     updateWishlistCount();
     setupEventListeners();
 
-    // 1. Check instant local storage cache
+    // 1. Instant Cache Render
     const cachedDataStr = localStorage.getItem(CACHE_STORAGE_KEY);
     let hasRenderedFromCache = false;
 
@@ -1237,12 +1268,11 @@ async function init() {
         }
     }
 
-    // 2. If NO cache, wait for catalog to load first
+    // 2. Fetch Fresh Catalog
     if (!hasRenderedFromCache) {
         await loadAndApplyCatalog(false);
         handlePopState();
     } else {
-        // Background sync for returning users
         const lastSync = Number(localStorage.getItem(CACHE_TIME_KEY) || 0);
         if (Date.now() - lastSync > CACHE_TTL_MS) {
             loadAndApplyCatalog(true);
