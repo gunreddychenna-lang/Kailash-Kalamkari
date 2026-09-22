@@ -126,8 +126,8 @@ for p in products:
         img_tag = f"""
     <image:image>
       <image:loc>{cdn_img_url}</image:loc>
-      <image:title>Srikalahasthi Pen Kalamkari Hand-Painted {clean_fabric_escaped} {dept_label} - {code}</image:title>
-      <image:caption>Authentic Srikalahasti Pen Kalamkari {clean_fabric_escaped} {dept_label} Kailash Kalamkari</image:caption>
+      <image:title>Srikalahasthi Pen Kalamkari {clean_fabric_escaped} {dept_label} - {code}</image:title>
+      <image:caption>Authentic Hand-Painted Srikalahasti Pen Kalamkari {clean_fabric_escaped} {dept_label} Kailash Kalamkari</image:caption>
     </image:image>"""
 
     entry = f"""  <url>

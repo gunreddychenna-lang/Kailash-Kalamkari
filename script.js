@@ -25,8 +25,8 @@ const DEPARTMENTS = [
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
-const CACHE_STORAGE_KEY = 'kailash_catalog_v14';
-const CACHE_TIME_KEY = 'kailash_catalog_time_v14';
+const CACHE_STORAGE_KEY = 'kailash_catalog_v15';
+const CACHE_TIME_KEY = 'kailash_catalog_time_v15';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
@@ -301,7 +301,7 @@ function updateDepartmentUI() {
     });
 
     if (elements.searchInput) {
-        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by code, fabric or motif...`;
+        elements.searchInput.placeholder = `Search ${activeDepartment.label.toLowerCase()} by code or fabric...`;
     }
 }
 
@@ -319,18 +319,15 @@ function scrollToDepartment(smooth = true) {
     if (isInitialLoad) return;
     
     setTimeout(() => {
-        const mainHeader = document.querySelector('.main-header');
         const stickyNav = document.querySelector('.sticky-nav-container');
         let targetScrollY = 0;
 
-        if (mainHeader) {
-            targetScrollY = mainHeader.offsetHeight;
-        } else if (stickyNav) {
+        if (stickyNav) {
             const productGrid = document.getElementById('product-grid');
             if (productGrid) {
                 const gridTop = productGrid.getBoundingClientRect().top + window.pageYOffset;
-                const navHeight = stickyNav.offsetHeight || 150;
-                targetScrollY = Math.max(0, gridTop - navHeight - 15);
+                const navHeight = stickyNav.offsetHeight || 120;
+                targetScrollY = Math.max(0, gridTop - navHeight - 10);
             }
         }
 
@@ -354,7 +351,7 @@ function goBack() {
     }
 }
 
-// 6. PROCESS RAW CATALOG DATA & CLEAN PRODUCT TITLES
+// 6. PROCESS RAW CATALOG DATA
 function processRawCatalogData(rawData) {
     const getFieldValue = (item, keys) => {
         const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -526,12 +523,11 @@ function renderProducts(products, container, isHorizontal = false) {
     container.innerHTML = '';
     
     if (products.length === 0) {
-        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--color-antique-gold); padding: 3rem 0;">No authentic hand-painted Kalamkari artworks found matching your criteria.</p>';
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--color-antique-gold); padding: 3rem 0;">No authentic hand-painted Kalamkari artworks found matching your search.</p>';
         return;
     }
     
     products.forEach(product => {
-        // Semantic <a> tag for Googlebot crawling & PageRank distribution
         const card = document.createElement('a');
         card.className = 'product-card';
         card.dataset.code = product.code;
@@ -543,7 +539,7 @@ function renderProducts(products, container, isHorizontal = false) {
         card.href = productUrl;
 
         card.onclick = (e) => {
-            e.preventDefault(); // Fast SPA navigation for users without page reload
+            e.preventDefault();
 
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.set('department', productDept);
@@ -567,7 +563,7 @@ function renderProducts(products, container, isHorizontal = false) {
         imageWrapper.className = 'product-image-wrapper';
 
         const img = document.createElement('img');
-        img.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title} Code ${product.code}`; 
+        img.alt = `Srikalahasthi Pen Kalamkari ${product.title} - ${product.code}`; 
         img.title = `Srikalahasthi Pen Kalamkari — ${product.title}`;
         img.loading = 'lazy';
         img.decoding = 'async';
@@ -606,8 +602,8 @@ function renderProducts(products, container, isHorizontal = false) {
         const cardWishlistBtn = document.createElement('button');
         cardWishlistBtn.className = `card-action-btn card-wishlist-btn ${isInWishlist ? 'active' : ''}`;
         cardWishlistBtn.innerHTML = isInWishlist ? '♥' : '♡';
-        cardWishlistBtn.title = 'Add to Kalamkari Gallery Vault';
-        cardWishlistBtn.setAttribute('aria-label', 'Save to Gallery Vault');
+        cardWishlistBtn.title = 'Add to Gallery Vault';
+        cardWishlistBtn.setAttribute('aria-label', 'Save Saree');
         
         cardWishlistBtn.onclick = (e) => {
             e.preventDefault();
@@ -632,11 +628,9 @@ function renderProducts(products, container, isHorizontal = false) {
 
         const info = document.createElement('div');
         info.className = 'product-info';
-        const shortDescription = product.description ? `${String(product.description).trim().slice(0, 100)}${product.description.length > 100 ? '...' : ''}` : '';
         
         info.innerHTML = `
             <h3 class="product-title">${product.title}</h3>
-            ${shortDescription ? `<p class="product-card-description">${shortDescription}</p>` : ''}
             <div class="product-price-row">
                 ${product.mrp > product.price ? `<span class="mrp-price">Rs. ${formattedMrp}</span>` : ''}
                 <span class="product-price">Rs. ${formattedPrice}</span>
@@ -837,7 +831,7 @@ function showView(viewName) {
         document.body.classList.remove('details-mode');
         if (viewName === 'catalogue') {
             scrollToDepartment(true);
-            document.title = "Srikalahasthi Pen Kalamkari Sarees — Hand-Painted Pure Silk Sarees | Kailash Kalamkari";
+            document.title = "Srikalahasthi Pen Kalamkari Sarees & Dupattas | Kailash Kalamkari";
             updateCanonicalUrl(BASE_DOMAIN + '/');
         } else if (viewName === 'policy') {
             document.title = "Return Policy — Kailash Kalamkari Srikalahasti";
@@ -957,7 +951,7 @@ function showProductDetails(product) {
     if (elements.detailImage) {
         delete elements.detailImage.dataset.fallbackAttempted;
         elements.detailImage.src = getProductImageUrl(product, 2048);
-        elements.detailImage.alt = `Kailash Kalamkari Srikalahasthi Pen Kalamkari ${product.title}`;
+        elements.detailImage.alt = `Srikalahasthi Pen Kalamkari ${product.title}`;
         setupImageFallback(elements.detailImage, product, 2048);
     }
 
@@ -1080,7 +1074,7 @@ function buyNow(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('crm_visitor_id') || localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = getProductFullUrl(product);
-    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this authentic hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI want to BUY this authentic hand-painted Kalamkari masterpiece:\n\n• Code: ${product.code}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease share payment details and shipping process.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
 }
@@ -1089,7 +1083,7 @@ function bookVideoCall(product = currentProduct) {
     if (!product) return;
     const visitorId = localStorage.getItem('crm_visitor_id') || localStorage.getItem('kalamkari_visitor_id') || 'New';
     const productUrl = getProductFullUrl(product);
-    const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK A LIVE VIDEO CALL to inspect this hand-painted Kalamkari artwork:\n\n• Code: ${product.code}\n• Title: ${product.title}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
+    const text = `Namaste Kailash Kalamkari Workshop,\n\nI would like to BOOK A LIVE VIDEO CALL to inspect this hand-painted Kalamkari artwork:\n\n• Code: ${product.code}\n• Fabric: ${product.fabric}\n• Offer Price: INR ${new Intl.NumberFormat('en-IN').format(product.price)}\n• Web Link: ${productUrl}\n\n• Ref ID: ${visitorId}\n\nPlease let me know your available time slots.`;
     
     window.open(`https://wa.me/${CONTACT_PHONE_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
 }
