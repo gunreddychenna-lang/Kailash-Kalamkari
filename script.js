@@ -1,16 +1,16 @@
 // =========================================================================
-// KAILASH KALAMKARI E-COMMERCE ENGINE (SUPABASE + CLOUDFLARE CDN)
+// KAILASH KALAMKARI E-COMMERCE ENGINE (SUPABASE + CLOUDFLARE EDGE CDN)
 // =========================================================================
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
-// 1. SUPABASE FAST DATABASE ENDPOINT (Primary source - <100ms)
+// 1. SUPABASE FAST DATABASE ENDPOINTS
 const SUPABASE_URL = 'https://ehovvhckvgwfkbgfvchi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVob3Z2aGNrdmd3ZmtiZ2Z2Y2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNDc4MzAsImV4cCI6MjEwNjkyMzgzMH0.Mx5PyiObZ7aTsL37QKADwUrJnIldWItXaeO2Kma9zKg';
 
-// 2. FALLBACK CSV & APPS SCRIPT ENDPOINTS
+// 2. FALLBACK ENDPOINTS
 const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv';
 const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv';
@@ -28,8 +28,8 @@ const DEPARTMENTS = [
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
-const CACHE_STORAGE_KEY = 'kailash_catalog_v16';
-const CACHE_TIME_KEY = 'kailash_catalog_time_v16';
+const CACHE_STORAGE_KEY = 'kailash_catalog_v20';
+const CACHE_TIME_KEY = 'kailash_catalog_time_v20';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
@@ -91,19 +91,24 @@ function showToast(message) {
     }, 3000);
 }
 
-// 1. EXTRACT DRIVE FILE ID
+// 1. ROBUST DRIVE FILE ID EXTRACTOR (Strips =w800, URLs, queries)
 function extractDriveFileId(str) {
     if (!str || typeof str !== 'string') return null;
-    const trimmed = str.trim();
+    let trimmed = str.trim();
+    
+    // Strip trailing =w800, =w1200 or parameters if present in sheet
+    trimmed = trimmed.replace(/=w\d+.*$/i, '').trim();
+
     if (/^[a-zA-Z0-9_-]{25,50}$/.test(trimmed)) return trimmed;
+    
     const match = trimmed.match(/(?:id=|file\/d\/|\/d\/|document\/d\/)([a-zA-Z0-9_-]{25,50})/);
     return match && match[1] ? match[1] : null;
 }
 
-// 2. IMAGE URL GENERATOR
-function getProductImageUrl(product, width = 2048) {
-    if (!product) return DEFAULT_IMAGE;
-    
+// 2. MULTI-TIER IMAGE SOURCES GENERATOR
+function getProductImageSources(product) {
+    if (!product) return [DEFAULT_IMAGE];
+
     const fileId = extractDriveFileId(product.imageId) ||
                    extractDriveFileId(product.image_id) ||
                    extractDriveFileId(product["File ID"]) ||
@@ -116,25 +121,41 @@ function getProductImageUrl(product, width = 2048) {
                    extractDriveFileId(product.thumbnail);
 
     if (fileId) {
-        return `${IMAGE_CDN_URL}/${fileId}`;
+        return [
+            `${IMAGE_CDN_URL}/${fileId}`,                             // 1. Cloudflare CDN (Primary - fast & reliable)
+            `https://lh3.googleusercontent.com/d/${fileId}=w1000`,    // 2. Google CDN (Fallback 1)
+            `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`, // 3. Drive Thumbnail (Fallback 2)
+            DEFAULT_IMAGE                                             // 4. Placeholder
+        ];
     }
-    
+
     let rawUrl = (product.thumbnail || product.thumbnail_link || product.imageLink || product.image_link || '').trim();
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        return rawUrl;
+        return [rawUrl, DEFAULT_IMAGE];
     }
 
-    return DEFAULT_IMAGE;
+    return [DEFAULT_IMAGE];
 }
 
-// 3. IMAGE ERROR FALLBACK
-function setupImageFallback(imgElement, product, width = 2048) {
+// 3. SAFE IMAGE ATTACHER WITH PROGRESSIVE FALLBACK
+function attachProductImage(imgElement, product) {
+    const sources = getProductImageSources(product);
+    let currentIdx = 0;
+
+    imgElement.src = sources[0];
+
     imgElement.onerror = () => {
-        imgElement.src = DEFAULT_IMAGE;
+        currentIdx++;
+        if (currentIdx < sources.length) {
+            imgElement.src = sources[currentIdx];
+        } else {
+            imgElement.onerror = null;
+            imgElement.src = DEFAULT_IMAGE;
+        }
     };
 }
 
-// 4. GENERATE CLEAN SEO SLUG & CANONICAL
+// 4. CLEAN SEO KEYWORD URL SLUG
 function getProductSlug(product) {
     const cleanFabric = (product.fabric || 'silk').toLowerCase()
         .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
@@ -156,7 +177,7 @@ function updateCanonicalUrl(url) {
     }
 }
 
-// 5. UPDATE SCHEMA & META TAGS
+// 5. UPDATE SEO META TAGS & GOOGLE SHOPPING SCHEMA
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
     const deptLabel = product.departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
@@ -165,7 +186,9 @@ function updateGoogleImageSchemaAndMeta(product) {
     const fullOptimizedTitle = `Kailash Kalamkari Srikalahasthi Pen Kalamkari Hand-Painted ${cleanFabric} ${deptLabel} - ${product.code}`;
     const pageTitle = `${fullOptimizedTitle} | Kailash Kalamkari Srikalahasti`;
     const pageDesc = `Buy authentic hand-painted Srikalahasthi (Srikalahasti) Pen Kalamkari ${cleanFabric} ${deptLabel} (${product.code}) with 100% natural organic vegetable dyes directly from Kailash Kalamkari master artisans since 1984.`;
-    const imageUrl = getProductImageUrl(product, 2048);
+    
+    const imageSources = getProductImageSources(product);
+    const imageUrl = imageSources[0];
     const productUrl = getProductFullUrl(product);
 
     document.title = pageTitle;
@@ -196,7 +219,7 @@ function updateGoogleImageSchemaAndMeta(product) {
             "@context": "https://schema.org/",
             "@type": "Product",
             "name": fullOptimizedTitle,
-            "image": [imageUrl, getProductImageUrl(product, 600)],
+            "image": [imageUrl],
             "description": product.description || pageDesc,
             "sku": product.code,
             "mpn": product.code,
@@ -356,7 +379,7 @@ function goBack() {
     }
 }
 
-// 6. PROCESS RAW CATALOG DATA (Works seamlessly with Supabase, JSON API & CSV)
+// 6. PROCESS RAW CATALOG DATA
 function processRawCatalogData(rawData) {
     const getFieldValue = (item, keys) => {
         const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -440,11 +463,11 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
     }
 }
 
-// 7. MULTI-TIER DATA FETCH (Supabase ➔ Apps Script ➔ Google CSV)
+// 7. MULTI-TIER DATA FETCH
 async function fetchFreshCatalogData() {
     let rawData = null;
 
-    // TIER 1: Supabase REST API (Instant, worldwide low latency)
+    // TIER 1: Supabase REST API
     try {
         const supabaseRes = await fetchWithTimeout(
             `${SUPABASE_URL}/rest/v1/products?select=*&order=price.desc`,
@@ -602,10 +625,8 @@ function renderProducts(products, container, isHorizontal = false) {
         img.loading = 'lazy';
         img.decoding = 'async';
         
-        const primaryUrl = getProductImageUrl(product, 2048);
-        img.src = primaryUrl;
-
-        setupImageFallback(img, product, 2048);
+        // Attaches image through resilient multi-fallback chain
+        attachProductImage(img, product);
         imageWrapper.appendChild(img);
 
         if (discountPct > 0) {
@@ -983,10 +1004,8 @@ function showProductDetails(product) {
     }
 
     if (elements.detailImage) {
-        delete elements.detailImage.dataset.fallbackAttempted;
-        elements.detailImage.src = getProductImageUrl(product, 2048);
+        attachProductImage(elements.detailImage, product);
         elements.detailImage.alt = `Srikalahasthi Pen Kalamkari ${product.title}`;
-        setupImageFallback(elements.detailImage, product, 2048);
     }
 
     const detailImgBadge = document.getElementById('detail-image-discount-badge');
@@ -1028,7 +1047,7 @@ function showProductDetails(product) {
 
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
-    elements.overlayImage.src = getProductImageUrl(product, 2048);
+    attachProductImage(elements.overlayImage, product);
     elements.overlayImage.style.transform = 'scale(1)';
     elements.overlay.classList.remove('hidden');
     isOverlayZoomed = false;
@@ -1217,7 +1236,7 @@ function setupEventListeners() {
     window.addEventListener('popstate', handlePopState); 
 }
 
-// 8. DEEP ROUTING & URL PARAMETER PARSING
+// 8. DEEP ROUTING & POPSTATE HANDLER
 function handlePopState() {
     const params = new URLSearchParams(window.location.search);
     const productParam = params.get('product') || params.get('code') || params.get('id');
@@ -1310,4 +1329,4 @@ async function init() {
     isInitialLoad = false;
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', init);    
