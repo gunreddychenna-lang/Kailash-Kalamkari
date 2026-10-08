@@ -1,19 +1,22 @@
 // =========================================================================
-// KAILASH KALAMKARI E-COMMERCE ENGINE (SEO & GOOGLE SHOPPING OPTIMIZED)
+// KAILASH KALAMKARI E-COMMERCE ENGINE (SUPABASE + CLOUDFLARE CDN)
 // =========================================================================
 const SORT_STRATEGY = 'PRICE_HIGH_TO_LOW'; 
 const TARGET_MIDDLE_PRICE = 26500;
 const FEATURED_FABRIC_FIRST = 'Kanchipuram';
 const GLOBAL_DISCOUNT_PERCENTAGE = 10; 
 
-// GOOGLE APPS SCRIPT WEB APP JSON API & CSV FALLBACK ENDPOINTS
+// 1. SUPABASE FAST DATABASE ENDPOINT (Primary source - <100ms)
+const SUPABASE_URL = 'https://ehovvhckvgwfkbgfvchi.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVob3Z2aGNrdmd3ZmtiZ2Z2Y2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNDc4MzAsImV4cCI6MjEwNjkyMzgzMH0.Mx5PyiObZ7aTsL37QKADwUrJnIldWItXaeO2Kma9zKg';
+
+// 2. FALLBACK CSV & APPS SCRIPT ENDPOINTS
 const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbzAXbuROmepx2ZwMM3vyj3wOivE5EOVlbsn59KAosQZPn3qoB0mFIgVWu-TeuJht3j1ng/exec';
 const PRIMARY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?gid=100332201&single=true&output=csv';
 const BACKUP_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQVgsqxAaO2_LUzSAxUz_2P_WhdreXSnASw7x30UJFRiCHX4i6WR0yIkhtDuF0wrNTDydZfLPZHRfhx/pub?output=csv';
 
-// LIVE CLOUDFLARE EDGE CDN (FREE, UNLIMITED BANDWIDTH, HIGH DEFINITION)
+// 3. IMAGE CDN & BRAND SETTINGS
 const IMAGE_CDN_URL = 'https://kalamkari-images.kailashakalamkariacc.workers.dev';
-
 const CONTACT_PHONE_NUMBER = '919063374020';
 const BASE_DOMAIN = 'https://www.kailash-kalamkari.com';
 const DEFAULT_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960"%3E%3Crect width="720" height="960" fill="%23F5EFE6"/%3E%3Ctext x="50%25" y="48%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23A67D5A"%3EImage+Not+Available%3C/text%3E%3C/svg%3E';
@@ -25,8 +28,8 @@ const DEPARTMENTS = [
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
-const CACHE_STORAGE_KEY = 'kailash_catalog_v15';
-const CACHE_TIME_KEY = 'kailash_catalog_time_v15';
+const CACHE_STORAGE_KEY = 'kailash_catalog_v16';
+const CACHE_TIME_KEY = 'kailash_catalog_time_v16';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
@@ -97,24 +100,26 @@ function extractDriveFileId(str) {
     return match && match[1] ? match[1] : null;
 }
 
-// 2. DIRECT CLOUDFLARE EDGE CDN IMAGE URL GENERATOR
+// 2. IMAGE URL GENERATOR
 function getProductImageUrl(product, width = 2048) {
     if (!product) return DEFAULT_IMAGE;
     
-    const fileId = extractDriveFileId(product["File ID"]) ||
-                   extractDriveFileId(product.imageId) || 
+    const fileId = extractDriveFileId(product.imageId) ||
+                   extractDriveFileId(product.image_id) ||
+                   extractDriveFileId(product["File ID"]) ||
                    extractDriveFileId(product['image id']) ||
                    extractDriveFileId(product["Drive Link"]) ||
                    extractDriveFileId(product.imageLink) || 
+                   extractDriveFileId(product.image_link) ||
                    extractDriveFileId(product['image link']) ||
-                   extractDriveFileId(product["Thumbnail Link"]) ||
+                   extractDriveFileId(product.thumbnail_link) ||
                    extractDriveFileId(product.thumbnail);
 
     if (fileId) {
         return `${IMAGE_CDN_URL}/${fileId}`;
     }
     
-    let rawUrl = (product.thumbnail || product['Thumbnail Link'] || product.imageLink || product['image link'] || product['Drive Link'] || '').trim();
+    let rawUrl = (product.thumbnail || product.thumbnail_link || product.imageLink || product.image_link || '').trim();
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
         return rawUrl;
     }
@@ -122,14 +127,14 @@ function getProductImageUrl(product, width = 2048) {
     return DEFAULT_IMAGE;
 }
 
-// 3. RESILIENT IMAGE FALLBACK
+// 3. IMAGE ERROR FALLBACK
 function setupImageFallback(imgElement, product, width = 2048) {
     imgElement.onerror = () => {
         imgElement.src = DEFAULT_IMAGE;
     };
 }
 
-// 4. GENERATE CLEAN SEO KEYWORD URL SLUG & FULL LINK
+// 4. GENERATE CLEAN SEO SLUG & CANONICAL
 function getProductSlug(product) {
     const cleanFabric = (product.fabric || 'silk').toLowerCase()
         .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
@@ -151,7 +156,7 @@ function updateCanonicalUrl(url) {
     }
 }
 
-// 5. UPDATE SEO META TAGS & EXACT GOOGLE MERCHANT SCHEMA
+// 5. UPDATE SCHEMA & META TAGS
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
     const deptLabel = product.departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
@@ -351,7 +356,7 @@ function goBack() {
     }
 }
 
-// 6. PROCESS RAW CATALOG DATA
+// 6. PROCESS RAW CATALOG DATA (Works seamlessly with Supabase, JSON API & CSV)
 function processRawCatalogData(rawData) {
     const getFieldValue = (item, keys) => {
         const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -394,9 +399,9 @@ function processRawCatalogData(rawData) {
         const cleanFabric = rawFabric.replace(/\b(sarees?|dupp?att?as?)\b/gi, '').trim() || 'Pure Silk';
         const title = `${cleanFabric} ${deptLabel}`;
 
-        let imageLink = String(getFieldValue(item, ['image link', 'imagelink', 'thumbnail link', 'drive link', 'image', 'photo link', 'thumbnail l'])).trim();
-        const thumbnail = String(getFieldValue(item, ['thumbnail', 'thumbnail link', 'thumb', 'thumbnail l'])).trim() || imageLink;
-        const imageId = String(getFieldValue(item, ['image id', 'imageid', 'file id', 'fileid', 'drive id'])).trim() || extractDriveFileId(imageLink) || extractDriveFileId(thumbnail);
+        let imageLink = String(getFieldValue(item, ['image_link', 'image link', 'imagelink', 'thumbnail link', 'drive link', 'image', 'photo link', 'thumbnail l'])).trim();
+        const thumbnail = String(getFieldValue(item, ['thumbnail_link', 'thumbnail', 'thumbnail link', 'thumb', 'thumbnail l'])).trim() || imageLink;
+        const imageId = String(getFieldValue(item, ['image_id', 'image id', 'imageid', 'file id', 'fileid', 'drive id'])).trim() || extractDriveFileId(imageLink) || extractDriveFileId(thumbnail);
 
         let rawQty = getFieldValue(item, ['qty', 'quantity', 'stock', 'available', 'count']);
         let qty = rawQty !== '' ? Number(rawQty) : 1;
@@ -422,7 +427,7 @@ function processRawCatalogData(rawData) {
     }).filter(item => item.code && (item.imageId || item.imageLink || item.thumbnail));
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -435,32 +440,61 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
     }
 }
 
+// 7. MULTI-TIER DATA FETCH (Supabase ➔ Apps Script ➔ Google CSV)
 async function fetchFreshCatalogData() {
     let rawData = null;
 
+    // TIER 1: Supabase REST API (Instant, worldwide low latency)
+    try {
+        const supabaseRes = await fetchWithTimeout(
+            `${SUPABASE_URL}/rest/v1/products?select=*&order=price.desc`,
+            {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                }
+            },
+            3000
+        );
+        if (supabaseRes.ok) {
+            rawData = await supabaseRes.json();
+            if (rawData && rawData.length > 0) return rawData;
+        }
+    } catch (e) {
+        console.warn('Supabase fetch failed, trying fallbacks...', e);
+    }
+
+    // TIER 2: Apps Script JSON API
     try {
         const apiRes = await fetchWithTimeout(APPS_SCRIPT_API_URL, { cache: 'no-cache' }, 4000);
         if (apiRes.ok) {
             rawData = await apiRes.json();
+            if (rawData && rawData.length > 0) return rawData;
         }
     } catch (e) {}
 
-    if (!rawData || !rawData.length) {
-        try {
-            const csvResp = await fetch(PRIMARY_CSV_URL);
-            if (!csvResp.ok) throw new Error('Primary CSV error');
+    // TIER 3: Primary Google Sheets CSV
+    try {
+        const csvResp = await fetch(PRIMARY_CSV_URL);
+        if (csvResp.ok) {
             const csvText = await csvResp.text();
             const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
             rawData = parsed.data || [];
-        } catch (err) {
-            const backupResp = await fetch(BACKUP_CSV_URL);
+            if (rawData && rawData.length > 0) return rawData;
+        }
+    } catch (err) {}
+
+    // TIER 4: Backup Google Sheets CSV
+    try {
+        const backupResp = await fetch(BACKUP_CSV_URL);
+        if (backupResp.ok) {
             const backupText = await backupResp.text();
             const parsed = Papa.parse(backupText, { header: true, skipEmptyLines: true });
             rawData = parsed.data || [];
         }
-    }
+    } catch (err) {}
 
-    return rawData;
+    return rawData || [];
 }
 
 async function loadAndApplyCatalog(isBackgroundSync = false) {
@@ -517,7 +551,7 @@ async function loadAndApplyCatalog(isBackgroundSync = false) {
     }
 }
 
-// 7. RENDER PRODUCTS WITH CRAWLABLE <a href> ANCHORS
+// 8. RENDER PRODUCTS
 function renderProducts(products, container, isHorizontal = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -1183,7 +1217,7 @@ function setupEventListeners() {
     window.addEventListener('popstate', handlePopState); 
 }
 
-// 8. HANDLE DIRECT URL CRAWLING & DEEP ROUTING
+// 8. DEEP ROUTING & URL PARAMETER PARSING
 function handlePopState() {
     const params = new URLSearchParams(window.location.search);
     const productParam = params.get('product') || params.get('code') || params.get('id');
@@ -1262,7 +1296,7 @@ async function init() {
         }
     }
 
-    // 2. Fetch Fresh Catalog
+    // 2. Fetch Fresh Catalog (Supabase primary)
     if (!hasRenderedFromCache) {
         await loadAndApplyCatalog(false);
         handlePopState();
