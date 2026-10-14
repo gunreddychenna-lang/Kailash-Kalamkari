@@ -28,8 +28,8 @@ const DEPARTMENTS = [
     { key: 'dupatta', label: 'Dupattas', singular: 'Dupatta' }
 ];
 
-const CACHE_STORAGE_KEY = 'kailash_catalog_v20';
-const CACHE_TIME_KEY = 'kailash_catalog_time_v20';
+const CACHE_STORAGE_KEY = 'kalamkari_catalog_v27';
+const CACHE_TIME_KEY = 'kalamkari_catalog_time_v27';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let allProducts = [];
@@ -38,7 +38,6 @@ let wishlist = JSON.parse(localStorage.getItem('kalamkariWishlist')) || [];
 let recentlyViewed = JSON.parse(localStorage.getItem('kalamkariRecentlyViewed')) || [];
 let currentProduct = null;
 let currentDepartment = getInitialDepartment();
-let isOverlayZoomed = false;
 let isInitialLoad = true; 
 let sessionPushedStates = 0;
 let pendingShareData = null;
@@ -66,7 +65,6 @@ const elements = {
     detailImage: document.getElementById('detail-image'),
     overlay: document.getElementById('image-overlay'),
     overlayImage: document.getElementById('overlay-image'),
-    overlayClose: document.getElementById('overlay-close'),
     detailTitle: document.getElementById('detail-title'),
     detailCode: document.getElementById('detail-code'),
     detailDescription: document.getElementById('detail-description'),
@@ -91,12 +89,9 @@ function showToast(message) {
     }, 3000);
 }
 
-// 1. ROBUST DRIVE FILE ID EXTRACTOR (Strips =w800, URLs, queries)
 function extractDriveFileId(str) {
     if (!str || typeof str !== 'string') return null;
     let trimmed = str.trim();
-    
-    // Strip trailing =w800, =w1200 or parameters if present in sheet
     trimmed = trimmed.replace(/=w\d+.*$/i, '').trim();
 
     if (/^[a-zA-Z0-9_-]{25,50}$/.test(trimmed)) return trimmed;
@@ -105,7 +100,6 @@ function extractDriveFileId(str) {
     return match && match[1] ? match[1] : null;
 }
 
-// 2. MULTI-TIER IMAGE SOURCES GENERATOR
 function getProductImageSources(product) {
     if (!product) return [DEFAULT_IMAGE];
 
@@ -122,10 +116,10 @@ function getProductImageSources(product) {
 
     if (fileId) {
         return [
-            `${IMAGE_CDN_URL}/${fileId}`,                             // 1. Cloudflare CDN (Primary - fast & reliable)
-            `https://lh3.googleusercontent.com/d/${fileId}=w1000`,    // 2. Google CDN (Fallback 1)
-            `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`, // 3. Drive Thumbnail (Fallback 2)
-            DEFAULT_IMAGE                                             // 4. Placeholder
+            `${IMAGE_CDN_URL}/${fileId}`,                             
+            `https://lh3.googleusercontent.com/d/${fileId}=w1000`,    
+            `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`, 
+            DEFAULT_IMAGE                                             
         ];
     }
 
@@ -137,7 +131,6 @@ function getProductImageSources(product) {
     return [DEFAULT_IMAGE];
 }
 
-// 3. SAFE IMAGE ATTACHER WITH PROGRESSIVE FALLBACK
 function attachProductImage(imgElement, product) {
     const sources = getProductImageSources(product);
     let currentIdx = 0;
@@ -155,7 +148,6 @@ function attachProductImage(imgElement, product) {
     };
 }
 
-// 4. CLEAN SEO KEYWORD URL SLUG
 function getProductSlug(product) {
     const cleanFabric = (product.fabric || 'silk').toLowerCase()
         .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
@@ -177,7 +169,6 @@ function updateCanonicalUrl(url) {
     }
 }
 
-// 5. UPDATE SEO META TAGS & GOOGLE SHOPPING SCHEMA
 function updateGoogleImageSchemaAndMeta(product) {
     if (!product) return;
     const deptLabel = product.departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
@@ -283,10 +274,15 @@ function getDepartmentProducts(departmentKey = currentDepartment) {
     return allProducts.filter(product => product.departmentKey === departmentKey);
 }
 
-function inferDepartmentFromText(...values) {
+function inferDepartmentFromText(explicitDept, ...values) {
+    const explicitNormalized = normalizeDepartment(explicitDept);
+    if (explicitNormalized) return explicitNormalized;
+
     const combined = values.filter(Boolean).map(value => String(value)).join(' ').toLowerCase();
     
-    if (combined.includes('duppata') || combined.includes('duppatas') || combined.includes('dupatta') || combined.includes('dupattas') || combined.includes('stole') || combined.includes('odhani') || combined.includes('chunni')) {
+    if (combined.includes('duppata') || combined.includes('duppatta') || combined.includes('duppatas') || 
+        combined.includes('dupatta') || combined.includes('dupattas') || combined.includes('stole') || 
+        combined.includes('odhani') || combined.includes('chunni')) {
         return 'dupatta';
     }
     if (combined.includes('saree') || combined.includes('sarees') || combined.includes('sari')) {
@@ -295,10 +291,12 @@ function inferDepartmentFromText(...values) {
 
     for (const val of values) {
         const code = String(val || '').toUpperCase().trim();
-        if (/^(CPKD|KD|DP|DUP|CCD|CIKD|CPUR|CPCSD|CBAN|CMAN|CD4|IKD|PKSD|PKFD|PCSD|BMD|BSD|PTD|PCFD|BWD|CD)/.test(code)) {
+        if (!code) continue;
+
+        if (/^(CBMD|CBWD|DBMD|DBWD|DBSD|BMD|BSD|BWD|DCOT|DIKK|DCRA|DCD|CCD|CD4|CD|CCRA|CPCFD|DPCFD|PCFD|CPCSD|PCSD|CPKD|KD|DUP|CIKD|IKD|DPTD|PTD)/.test(code)) {
             return 'dupatta';
         }
-        if (/^(CPKS|CPIS|CCHE|KS|SK|SR|SAREE|MGC|MGS|MG|PIS|PKS|KB|CSB|CH|PTS|PGS|GD|SKB|SKS|PPS|CSBW|CCS|CC|CS|KTS|KT|BSC|BSBW|PCS|CB|CP)/.test(code)) {
+        if (/^(CPKS|CPIS|CPGS|CPCS|CPPS|DPKS|DPPS|DPAT|DPTS|DPCS|CCHE|CSKB|CSEM|CMAN|MGC|MGS|MG|PIS|PKS|KB|CSB|CH|PTS|PGS|GD|SKB|SKS|PPS|CSBW|CCS|KTS|KT|BSC|BSBW|PCS|CB\d)/.test(code)) {
             return 'saree';
         }
     }
@@ -379,7 +377,6 @@ function goBack() {
     }
 }
 
-// 6. PROCESS RAW CATALOG DATA
 function processRawCatalogData(rawData) {
     const getFieldValue = (item, keys) => {
         const normalize = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -413,10 +410,10 @@ function processRawCatalogData(rawData) {
         
         const rawFabric = String(getFieldValue(item, ['fabric', 'fabric type', 'material', 'saree name', 'name', 'title']) || 'Pure Silk').trim();
         const category = String(getFieldValue(item, ['category', 'type', 'section']) || 'Uncategorized').trim();
-        const department = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
+        const rawDeptColumn = String(getFieldValue(item, ['department', 'dept', 'collection'])).trim();
         const description = String(getFieldValue(item, ['description', 'product description', 'desc', 'details'])).trim();
 
-        const departmentKey = normalizeDepartment(department) || inferDepartmentFromText(rawFabric, category, code, description) || 'saree';
+        const departmentKey = inferDepartmentFromText(rawDeptColumn, rawFabric, category, code, description);
         const deptLabel = departmentKey === 'dupatta' ? 'Dupatta' : 'Saree';
 
         const cleanFabric = rawFabric.replace(/\b(sarees?|dupp?att?as?)\b/gi, '').trim() || 'Pure Silk';
@@ -443,14 +440,14 @@ function processRawCatalogData(rawData) {
         }
 
         return {
-            code, title, fabric: cleanFabric, category, department, departmentKey,
+            code, title, fabric: cleanFabric, category, department: rawDeptColumn, departmentKey,
             price: sellingPrice, mrp: rawMrp,
             qty, imageLink, thumbnail, imageId, description
         };
     }).filter(item => item.code && (item.imageId || item.imageLink || item.thumbnail));
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -463,61 +460,78 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
     }
 }
 
-// 7. MULTI-TIER DATA FETCH
+// 💡 Pagnation / Multi-batch fetching to bypass Supabase's strict 1,000 row max limit
 async function fetchFreshCatalogData() {
-    let rawData = null;
+    let allFetchedRows = [];
+    let batchSize = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    // TIER 1: Supabase REST API
-    try {
-        const supabaseRes = await fetchWithTimeout(
-            `${SUPABASE_URL}/rest/v1/products?select=*&order=price.desc`,
-            {
-                headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`
+    // Fetch in chunks of 1000 until all rows are fully loaded from Supabase
+    while (hasMore) {
+        try {
+            const supabaseRes = await fetchWithTimeout(
+                `${SUPABASE_URL}/rest/v1/products?select=*&order=price.desc`,
+                {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Range': `${from}-${from + batchSize - 1}`
+                    }
+                },
+                5000
+            );
+
+            if (supabaseRes.ok) {
+                const chunk = await supabaseRes.json();
+                if (Array.isArray(chunk) && chunk.length > 0) {
+                    allFetchedRows = allFetchedRows.concat(chunk);
+                    if (chunk.length < batchSize) {
+                        hasMore = false;
+                    } else {
+                        from += batchSize;
+                    }
+                } else {
+                    hasMore = false;
                 }
-            },
-            3000
-        );
-        if (supabaseRes.ok) {
-            rawData = await supabaseRes.json();
-            if (rawData && rawData.length > 0) return rawData;
+            } else {
+                hasMore = false;
+            }
+        } catch (e) {
+            hasMore = false;
         }
-    } catch (e) {
-        console.warn('Supabase fetch failed, trying fallbacks...', e);
     }
 
-    // TIER 2: Apps Script JSON API
+    if (allFetchedRows.length > 0) return allFetchedRows;
+
+    // Fallbacks if Supabase fails completely
     try {
         const apiRes = await fetchWithTimeout(APPS_SCRIPT_API_URL, { cache: 'no-cache' }, 4000);
         if (apiRes.ok) {
-            rawData = await apiRes.json();
+            const rawData = await apiRes.json();
             if (rawData && rawData.length > 0) return rawData;
         }
     } catch (e) {}
 
-    // TIER 3: Primary Google Sheets CSV
     try {
         const csvResp = await fetch(PRIMARY_CSV_URL);
         if (csvResp.ok) {
             const csvText = await csvResp.text();
             const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-            rawData = parsed.data || [];
-            if (rawData && rawData.length > 0) return rawData;
+            if (parsed.data && parsed.data.length > 0) return parsed.data;
         }
     } catch (err) {}
 
-    // TIER 4: Backup Google Sheets CSV
     try {
-        const backupResp = await fetch(BACKUP_CSV_URL);
-        if (backupResp.ok) {
-            const backupText = await backupResp.text();
-            const parsed = Papa.parse(backupText, { header: true, skipEmptyLines: true });
-            rawData = parsed.data || [];
+        const localCsvResp = await fetch('products.csv');
+        if (localCsvResp.ok) {
+            const csvText = await localCsvResp.text();
+            const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+            if (parsed.data && parsed.data.length > 0) return parsed.data;
         }
     } catch (err) {}
 
-    return rawData || [];
+    return [];
 }
 
 async function loadAndApplyCatalog(isBackgroundSync = false) {
@@ -564,7 +578,6 @@ async function loadAndApplyCatalog(isBackgroundSync = false) {
 
         if (elements.spinner) elements.spinner.style.display = 'none';
     } catch (error) {
-        console.error('Catalog Sync Error:', error);
         if (elements.spinner && !isBackgroundSync) {
             elements.spinner.innerHTML = `
                 <p style="color: var(--color-temple-crimson); font-weight: 600;">Unable to connect to live catalog.</p>
@@ -574,7 +587,6 @@ async function loadAndApplyCatalog(isBackgroundSync = false) {
     }
 }
 
-// 8. RENDER PRODUCTS
 function renderProducts(products, container, isHorizontal = false) {
     if (!container) return;
     container.innerHTML = '';
@@ -625,7 +637,6 @@ function renderProducts(products, container, isHorizontal = false) {
         img.loading = 'lazy';
         img.decoding = 'async';
         
-        // Attaches image through resilient multi-fallback chain
         attachProductImage(img, product);
         imageWrapper.appendChild(img);
 
@@ -718,18 +729,6 @@ function renderProducts(products, container, isHorizontal = false) {
         card.appendChild(imageWrapper);
         card.appendChild(info);
         container.appendChild(card);
-    });
-}
-
-function syncAllCardWishlistButtons() {
-    document.querySelectorAll('.product-card').forEach(card => {
-        const code = card.dataset.code;
-        const wishlistBtn = card.querySelector('.card-wishlist-btn');
-        if (code && wishlistBtn) {
-            const inWishlist = wishlist.some(item => item.code === code);
-            wishlistBtn.innerHTML = inWishlist ? '♥' : '♡';
-            wishlistBtn.classList.toggle('active', inWishlist);
-        }
     });
 }
 
@@ -1048,9 +1047,7 @@ function showProductDetails(product) {
 function openFullScreenImage(product) {
     if (!product || !elements.overlay || !elements.overlayImage) return;
     attachProductImage(elements.overlayImage, product);
-    elements.overlayImage.style.transform = 'scale(1)';
     elements.overlay.classList.remove('hidden');
-    isOverlayZoomed = false;
     document.body.style.overflow = 'hidden';
 }
 
@@ -1236,7 +1233,6 @@ function setupEventListeners() {
     window.addEventListener('popstate', handlePopState); 
 }
 
-// 8. DEEP ROUTING & POPSTATE HANDLER
 function handlePopState() {
     const params = new URLSearchParams(window.location.search);
     const productParam = params.get('product') || params.get('code') || params.get('id');
@@ -1286,7 +1282,6 @@ async function init() {
     updateWishlistCount();
     setupEventListeners();
 
-    // 1. Instant Cache Render
     const cachedDataStr = localStorage.getItem(CACHE_STORAGE_KEY);
     let hasRenderedFromCache = false;
 
@@ -1315,7 +1310,6 @@ async function init() {
         }
     }
 
-    // 2. Fetch Fresh Catalog (Supabase primary)
     if (!hasRenderedFromCache) {
         await loadAndApplyCatalog(false);
         handlePopState();
@@ -1329,4 +1323,4 @@ async function init() {
     isInitialLoad = false;
 }
 
-document.addEventListener('DOMContentLoaded', init);    
+document.addEventListener('DOMContentLoaded', init);
