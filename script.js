@@ -272,9 +272,18 @@ function extractDriveFileId(value) {
 }
 
 function getProductImageSources(product) {
-    if (!product) {
-        return [DEFAULT_IMAGE];
-    }
+    if (!product) return [DEFAULT_IMAGE];
+
+    const sources = [];
+    const add = value => {
+        const url = String(value || '').trim();
+        if (/^https:\/\//i.test(url) && !sources.includes(url)) {
+            sources.push(url);
+        }
+    };
+
+    // Prefer backed-up images, then retain every existing Google Drive fallback.
+    add(product.archivedImageUrl || product.archived_image_url);
 
     const fileId =
         extractDriveFileId(product.imageId) ||
@@ -289,30 +298,17 @@ function getProductImageSources(product) {
         extractDriveFileId(product.thumbnail);
 
     if (fileId) {
-        return [
-            `${IMAGE_CDN_URL}/${fileId}`,
-            `https://lh3.googleusercontent.com/d/${fileId}=w1000`,
-            `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
-            DEFAULT_IMAGE
-        ];
+        add(`${IMAGE_CDN_URL}/${fileId}`);
+        add(`https://lh3.googleusercontent.com/d/${fileId}=w1000`);
+        add(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`);
     }
 
-    const rawUrl = (
-        product.thumbnail ||
-        product.thumbnail_link ||
-        product.imageLink ||
-        product.image_link ||
-        ''
-    ).trim();
-
-    if (
-        rawUrl.startsWith('http://') ||
-        rawUrl.startsWith('https://')
-    ) {
-        return [rawUrl, DEFAULT_IMAGE];
-    }
-
-    return [DEFAULT_IMAGE];
+    add(product.thumbnail);
+    add(product.thumbnail_link);
+    add(product.imageLink);
+    add(product.image_link);
+    sources.push(DEFAULT_IMAGE);
+    return [...new Set(sources)];
 }
 
 function attachProductImage(imgElement, product) {
@@ -1059,15 +1055,14 @@ function processRawCatalogData(rawData) {
                 quantity = 0;
             }
 
-            const availability = getFieldValue(
-                item,
-                ['availability']
-            ).toLowerCase();
+            const availability = getFieldValue(item, [
+                'is_available', 'availability'
+            ]).trim().toLowerCase();
 
-            if (
-                availability === 'out_of_stock' ||
-                availability === 'out of stock'
-            ) {
+            if ([
+                'false', '0', 'no', 'out_of_stock', 'out of stock',
+                'sold out', 'unavailable'
+            ].includes(availability)) {
                 quantity = 0;
             }
 
@@ -1129,6 +1124,9 @@ function processRawCatalogData(rawData) {
                 imageLink,
                 thumbnail,
                 imageId,
+                archivedImageUrl: getFieldValue(item, [
+                    'archived_image_url', 'archived image url'
+                ]),
                 description
             };
         })
@@ -1139,7 +1137,8 @@ function processRawCatalogData(rawData) {
                 (
                     product.imageId ||
                     product.imageLink ||
-                    product.thumbnail
+                    product.thumbnail ||
+                    product.archivedImageUrl
                 )
         );
 }
