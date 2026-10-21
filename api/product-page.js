@@ -4,127 +4,253 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const BASE = 'https://www.kailash-kalamkari.com';
-const DISCOUNT = 10;
+const SITE = 'https://www.kailash-kalamkari.com';
+const DISCOUNT_PERCENT = 10;
+const IMAGE_CDN = 'https://kalamkari-images.kailashakalamkariacc.workers.dev';
 
-const escapeHtml = value => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
-const safeJson = value => JSON.stringify(value)
-    .replace(/</g, '\\u003c');
+function safeJson(value) {
+    return JSON.stringify(value)
+        .replace(/</g, '\\u003c')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
+}
 
-function departmentFor(p) {
-    const text = [
-        p.department,
-        p.fabric,
-        p.category,
-        p.code,
-        p.description
+function readHomepage() {
+    return fs.readFileSync(
+        path.join(process.cwd(), 'home.html'),
+        'utf8'
+    );
+}
+
+function sendHtml(res, status, html) {
+    res.setHeader(
+        'Content-Type',
+        'text/html; charset=utf-8'
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return res.status(status).send(html);
+}
+
+function getParams(req) {
+    const url = new URL(
+        req.url || '/',
+        'https://internal.local'
+    );
+    const query = req.query || {};
+
+    function get(name) {
+        const value = query[name];
+        if (typeof value === 'string') return value.trim();
+        return (url.searchParams.get(name) || '').trim();
+    }
+
+    return {
+        product: get('product'),
+        department: get('department')
+    };
+}
+
+function cleanFabric(value) {
+    return String(value || 'Silk')
+        .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Silk';
+}
+
+function departmentFor(product) {
+    const value = [
+        product.department,
+        product.fabric,
+        product.category
     ].join(' ').toLowerCase();
 
-    return /dupatt?a|duppatt?a/.test(text)
+    return /dupatta|duppata|duppatta/.test(value)
         ? 'dupatta'
         : 'saree';
 }
 
-function makeSlug(p) {
-    const fabric = String(p.fabric || 'silk')
+function makeSlug(product) {
+    const fabric = cleanFabric(product.fabric)
         .toLowerCase()
-        .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'silk';
+        .replace(/^-+|-+$/g, '');
 
-    return `srikalahasthi-pen-kalamkari-${fabric}-${p.code}`;
+    return (
+        'srikalahasthi-pen-kalamkari-' +
+        fabric +
+        '-' +
+        product.code
+    );
 }
 
-function imageUrl(p) {
-    if (/^https:\/\//i.test(p.archived_image_url || '')) {
-        return p.archived_image_url;
+function fileId(value) {
+    const str = String(value || '').trim();
+    const match =
+        str.match(/\/d\/([A-Za-z0-9_-]+)/) ||
+        str.match(/[?&]id=([A-Za-z0-9_-]+)/) ||
+        str.match(/^([A-Za-z0-9_-]{20,})$/);
+
+    return match ? match[1] : '';
+}
+
+function getImage(product) {
+    const archived = String(
+        product.archived_image_url || ''
+    ).trim();
+
+    if (/^https:\/\//i.test(archived)) {
+        return archived;
     }
 
     const values = [
-        p.image_id,
-        p.image_link,
-        p.thumbnail_link
+        product.image_id,
+        product.image_link,
+        product.thumbnail_link
     ];
 
     for (const value of values) {
-        const text = String(value || '');
-        const match = text.match(/\/d\/([\w-]+)/) ||
-            text.match(/[?&]id=([\w-]+)/) ||
-            text.match(/^([\w-]{20,})$/);
-
-        if (match) {
-            return 'https://kalamkari-images.kailashakalamkariacc.workers.dev/'
-                + encodeURIComponent(match[1]);
+        const id = fileId(value);
+        if (id) {
+            return IMAGE_CDN + '/' + encodeURIComponent(id);
         }
     }
 
-    return values.find(v => /^https:\/\//i.test(v || '')) ||
-        BASE + '/logo.jpg';
+    for (const value of values) {
+        if (/^https:\/\//i.test(String(value || ''))) {
+            return String(value);
+        }
+    }
+
+    return SITE + '/logo.jpg';
 }
 
 async function findProduct(code) {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_ANON_KEY;
+    const base = String(
+        process.env.SUPABASE_URL || ''
+    ).trim();
 
-    if (!url || !key) {
+    const key = String(
+        process.env.SUPABASE_ANON_KEY || ''
+    ).trim();
+
+    if (!base || !key) {
         throw new Error('Supabase configuration missing');
     }
 
-    const endpoint = new URL('/rest/v1/products', url);
+    const endpoint = new URL('/rest/v1/products', base);
+
     endpoint.searchParams.set('select', '*');
-    endpoint.searchParams.set('code', `eq.${code}`);
+    endpoint.searchParams.set('code', 'eq.' + code);
     endpoint.searchParams.set('limit', '1');
 
     const response = await fetch(endpoint, {
         headers: {
             apikey: key,
-            Authorization: `Bearer ${key}`
+            Authorization: 'Bearer ' + key,
+            Accept: 'application/json'
         },
-        signal: AbortSignal.timeout(7000)
+        signal: AbortSignal.timeout(8000)
     });
 
     if (!response.ok) {
-        throw new Error(`Supabase HTTP ${response.status}`);
+        throw new Error('Supabase HTTP ' + response.status);
     }
 
     const rows = await response.json();
+
+    if (!Array.isArray(rows)) {
+        throw new Error('Invalid product response');
+    }
+
     return rows[0] || null;
 }
 
-function makeHtml(p, slug, department) {
-    const htmlPath = path.join(process.cwd(), 'home.html');
-    let html = fs.readFileSync(htmlPath, 'utf8');
+function replaceMeta(html, id, value) {
+    const escapedId = id.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&'
+    );
 
-    const fabric = String(p.fabric || 'Pure Silk')
-        .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
-        .trim() || 'Pure Silk';
+    const regex = new RegExp(
+        '<meta\\b(?=[^>]*\\bid=["\\\']' +
+        escapedId +
+        '["\\\'])[^>]*>',
+        'i'
+    );
 
-    const type = department === 'dupatta' ? 'Dupatta' : 'Saree';
-    const title = `${fabric} Pen Kalamkari ${type} ${p.code} | Kailash Kalamkari`;
+    return html.replace(regex, tag => {
+        const content = 'content="' +
+            escapeHtml(value) + '"';
 
-    const description = `Explore authentic hand-painted Srikalahasthi Pen Kalamkari ${fabric} ${type}, product ${p.code}, at Kailash Kalamkari.`;
+        if (/\bcontent=["'][^"']*["']/i.test(tag)) {
+            return tag.replace(
+                /\bcontent=["'][^"']*["']/i,
+                content
+            );
+        }
+        return tag.replace(/>$/, ' ' + content + '>');
+    });
+}
 
-    const rawMrp = Number(p.mrp) > 0
-        ? Number(p.mrp)
-        : Number(p.price || 0);
+function buildProductHtml(product, slug, department) {
+    let html = readHomepage();
 
-    const sellingPrice = Math.round(rawMrp * (1 - DISCOUNT / 100));
-    const canonical = `${BASE}/?department=${department}&product=${slug}`;
-    const image = imageUrl(p);
-    const available = p.is_available !== false && Number(p.qty) > 0;
+    const code = String(product.code);
+    const fabric = cleanFabric(product.fabric);
+    const type = department === 'dupatta'
+        ? 'Dupatta'
+        : 'Saree';
+
+    const name = fabric + ' ' + type;
+    const title = name + ' ' + code + ' | Kailash Kalamkari';
+
+    const description = String(
+        product.description ||
+        (
+            'Explore Srikalahasthi Pen Kalamkari ' +
+            name + ', style code ' + code +
+            ', at Kailash Kalamkari.'
+        )
+    ).trim();
+
+    const rawMrp = Number(product.mrp) > 0
+        ? Number(product.mrp)
+        : Number(product.price || 0);
+
+    if (!Number.isFinite(rawMrp) || rawMrp <= 0) {
+        throw new Error('Invalid product MRP');
+    }
+
+    const sellingPrice = Math.round(
+        rawMrp * (1 - DISCOUNT_PERCENT / 100)
+    );
+
+    const canonical = SITE +
+        '/?department=' + department +
+        '&product=' + encodeURIComponent(slug);
+
+    const image = getImage(product);
+
+    const available =
+        product.is_available !== false &&
+        Number(product.qty || 0) > 0;
 
     const schema = {
         '@context': 'https://schema.org',
         '@type': 'Product',
-        name: `${fabric} ${type} ${p.code}`,
-        sku: p.code,
-        description: p.description || description,
+        name,
+        sku: code,
+        description,
         image: [image],
         url: canonical,
         brand: {
@@ -136,79 +262,99 @@ function makeHtml(p, slug, department) {
             url: canonical,
             priceCurrency: 'INR',
             price: sellingPrice,
-            itemCondition: 'https://schema.org/NewCondition',
             availability: available
                 ? 'https://schema.org/InStock'
-                : 'https://schema.org/OutOfStock'
+                : 'https://schema.org/OutOfStock',
+            itemCondition: 'https://schema.org/NewCondition'
         }
     };
 
+    // Unique page title
     html = html.replace(
         /<title>[\s\S]*?<\/title>/i,
-        `<title>${escapeHtml(title)}</title>`
+        '<title>' + escapeHtml(title) + '</title>'
     );
 
+    // Canonical production URL
     html = html.replace(
         /<link\b(?=[^>]*\brel=["']canonical["'])[^>]*>/i,
-        `<link rel="canonical" id="canonical-url" href="${escapeHtml(canonical)}">`
+        '<link rel="canonical" id="canonical-url" href="' +
+        escapeHtml(canonical) + '">'
     );
 
+    // Unique description
     html = html.replace(
-        /<meta\s+name="description"[\s\S]*?>/i,
-        `<meta name="description" content="${escapeHtml(description)}">`
+        /<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/i,
+        '<meta name="description" content="' +
+        escapeHtml(description) + '">'
     );
 
+    const social = [
+        ['og-title', title],
+        ['og-desc', description],
+        ['og-image', image],
+        ['og-url', canonical],
+        ['twitter-title', title],
+        ['twitter-desc', description],
+        ['twitter-image', image]
+    ];
+
+    for (const [id, value] of social) {
+        html = replaceMeta(html, id, value);
+    }
+
+    // Add Product JSON-LD.
     const metadata = `
-<meta property="og:type" content="product">
-<meta name="kk-server-product" content="${escapeHtml(p.code)}">
+<meta name="kk-server-product" content="${escapeHtml(code)}">
 <script type="application/ld+json">${safeJson(schema)}</script>
 `;
 
-    html = html.replace('</head>', `${metadata}</head>`);
+    html = html.replace('</head>', metadata + '</head>');
 
-    const summary = `
-<section aria-label="Product details" id="server-product-summary">
-<h1>${escapeHtml(fabric)} ${escapeHtml(type)} — ${escapeHtml(p.code)}</h1>
-<p>${escapeHtml(p.description || description)}</p>
-<p>Price: ₹${sellingPrice}</p>
-<img src="${escapeHtml(image)}" alt="${escapeHtml(title)}" width="480" loading="lazy">
-</section>`;
-
-    // The existing JavaScript shopping interface remains unchanged.
-    // This initial summary is available before JavaScript loads.
-    html = html.replace(
-        '<body',
-        '<body'
-    );
-
-    html = html.replace(
-        /(<body[^>]*>)/i,
-        `$1\n${summary}`
-    );
-
+    // No extra visible summary is inserted:
+    // Existing website UI and product JS remain unchanged.
     return html;
 }
 
 module.exports = async function handler(req, res) {
     if (req.method !== 'GET') {
         res.setHeader('Allow', 'GET');
-        return res.status(405).end();
+        return res.status(405).send('Method not allowed');
     }
 
-    const slug = typeof req.query.product === 'string'
-        ? req.query.product.trim()
-        : '';
+    let params;
 
-    const department = typeof req.query.department === 'string'
-        ? req.query.department.trim()
-        : '';
+    try {
+        params = getParams(req);
+    } catch (error) {
+        return res.status(400).send('Invalid request');
+    }
 
-    if (!/^[a-z0-9-]{1,200}$/i.test(slug) ||
-        !['saree', 'dupatta'].includes(department)) {
+    const slug = params.product;
+    const department = params.department;
+
+    // Original homepage when there is no product.
+    if (!slug) {
+        try {
+            return sendHtml(res, 200, readHomepage());
+        } catch (error) {
+            console.error('Homepage error:', error.message);
+            return res.status(503).send(
+                'Homepage temporarily unavailable'
+            );
+        }
+    }
+
+    // Validate product URL.
+    if (
+        !/^[a-z0-9-]{1,200}$/i.test(slug) ||
+        !['saree', 'dupatta'].includes(department)
+    ) {
         return res.status(404).send('Product not found');
     }
 
     const match = slug.match(/-([A-Za-z0-9]+)$/);
+
     if (!match) {
         return res.status(404).send('Product not found');
     }
@@ -216,21 +362,34 @@ module.exports = async function handler(req, res) {
     try {
         const product = await findProduct(match[1]);
 
-        if (!product ||
-            makeSlug(product).toLowerCase() !== slug.toLowerCase() ||
-            departmentFor(product) !== department) {
+        if (!product) {
             return res.status(404).send('Product not found');
         }
 
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-store');
+        const expectedSlug = makeSlug(product);
+        const expectedDepartment = departmentFor(product);
 
-        return res.status(200).send(
-            makeHtml(product, slug, department)
+        if (
+            expectedSlug.toLowerCase() !== slug.toLowerCase() ||
+            expectedDepartment !== department
+        ) {
+            return res.status(404).send(
+                'Product URL not found'
+            );
+        }
+
+        return sendHtml(
+            res,
+            200,
+            buildProductHtml(product, slug, department)
         );
+
     } catch (error) {
         console.error('Product SEO error:', error.message);
+
         res.setHeader('Retry-After', '60');
-        return res.status(503).send('Product temporarily unavailable');
+        return res.status(503).send(
+            'Product temporarily unavailable'
+        );
     }
 };

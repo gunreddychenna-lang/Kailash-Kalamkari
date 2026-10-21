@@ -32,17 +32,7 @@
   "rewrites": [
     {
       "source": "/",
-      "has": [
-        {
-          "type": "query",
-          "key": "product"
-        }
-      ],
       "destination": "/api/product-page"
-    },
-    {
-      "source": "/",
-      "destination": "/home.html"
     }
   ]
 }
