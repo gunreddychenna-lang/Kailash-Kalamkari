@@ -98,7 +98,7 @@ async function findProduct(code) {
 }
 
 function makeHtml(p, slug, department) {
-    const htmlPath = path.join(process.cwd(), 'index.html');
+    const htmlPath = path.join(process.cwd(), 'home.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
     const fabric = String(p.fabric || 'Pure Silk')

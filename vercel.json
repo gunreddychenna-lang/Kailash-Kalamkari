@@ -1,10 +1,10 @@
 
 {
-"functions": {
-  "api/product-page.js": {
-    "includeFiles": "index.html"
-  }
-},
+  "functions": {
+    "api/product-page.js": {
+      "includeFiles": "home.html"
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
@@ -39,6 +39,10 @@
         }
       ],
       "destination": "/api/product-page"
+    },
+    {
+      "source": "/",
+      "destination": "/home.html"
     }
   ]
 }
