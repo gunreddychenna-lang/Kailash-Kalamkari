@@ -1,4 +1,10 @@
+
 {
+"functions": {
+  "api/product-page.js": {
+    "includeFiles": "index.html"
+  }
+},
   "headers": [
     {
       "source": "/(.*)",
@@ -21,6 +27,18 @@
           "value": "public, max-age=86400"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "product"
+        }
+      ],
+      "destination": "/api/product-page"
     }
   ]
 }
