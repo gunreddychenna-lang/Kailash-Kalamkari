@@ -6,7 +6,12 @@ const path = require('node:path');
 
 const SITE = 'https://www.kailash-kalamkari.com';
 const DISCOUNT_PERCENT = 10;
-const IMAGE_CDN = 'https://kalamkari-images.kailashakalamkariacc.workers.dev';
+const IMAGE_CDN =
+    'https://kalamkari-images.kailashakalamkariacc.workers.dev';
+
+// ============================================================
+// HTML AND JSON SAFETY
+// ============================================================
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -24,6 +29,10 @@ function safeJson(value) {
         .replace(/\u2029/g, '\\u2029');
 }
 
+// ============================================================
+// ORIGINAL WEBSITE TEMPLATE
+// ============================================================
+
 function readHomepage() {
     return fs.readFileSync(
         path.join(process.cwd(), 'home.html'),
@@ -36,21 +45,36 @@ function sendHtml(res, status, html) {
         'Content-Type',
         'text/html; charset=utf-8'
     );
+
     res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    res.setHeader(
+        'X-Content-Type-Options',
+        'nosniff'
+    );
+
     return res.status(status).send(html);
 }
+
+// ============================================================
+// REQUEST PARAMETERS
+// ============================================================
 
 function getParams(req) {
     const url = new URL(
         req.url || '/',
         'https://internal.local'
     );
+
     const query = req.query || {};
 
     function get(name) {
         const value = query[name];
-        if (typeof value === 'string') return value.trim();
+
+        if (typeof value === 'string') {
+            return value.trim();
+        }
+
         return (url.searchParams.get(name) || '').trim();
     }
 
@@ -59,6 +83,10 @@ function getParams(req) {
         department: get('department')
     };
 }
+
+// ============================================================
+// PRODUCT FABRIC / DEPARTMENT / SLUG
+// ============================================================
 
 function cleanFabric(value) {
     return String(value || 'Silk')
@@ -93,8 +121,13 @@ function makeSlug(product) {
     );
 }
 
+// ============================================================
+// PRODUCT IMAGES
+// ============================================================
+
 function fileId(value) {
     const str = String(value || '').trim();
+
     const match =
         str.match(/\/d\/([A-Za-z0-9_-]+)/) ||
         str.match(/[?&]id=([A-Za-z0-9_-]+)/) ||
@@ -120,8 +153,13 @@ function getImage(product) {
 
     for (const value of values) {
         const id = fileId(value);
+
         if (id) {
-            return IMAGE_CDN + '/' + encodeURIComponent(id);
+            return (
+                IMAGE_CDN +
+                '/' +
+                encodeURIComponent(id)
+            );
         }
     }
 
@@ -134,6 +172,10 @@ function getImage(product) {
     return SITE + '/logo.jpg';
 }
 
+// ============================================================
+// SUPABASE PRODUCT LOOKUP
+// ============================================================
+
 async function findProduct(code) {
     const base = String(
         process.env.SUPABASE_URL || ''
@@ -144,10 +186,15 @@ async function findProduct(code) {
     ).trim();
 
     if (!base || !key) {
-        throw new Error('Supabase configuration missing');
+        throw new Error(
+            'Supabase configuration missing'
+        );
     }
 
-    const endpoint = new URL('/rest/v1/products', base);
+    const endpoint = new URL(
+        '/rest/v1/products',
+        base
+    );
 
     endpoint.searchParams.set('select', '*');
     endpoint.searchParams.set('code', 'eq.' + code);
@@ -163,17 +210,25 @@ async function findProduct(code) {
     });
 
     if (!response.ok) {
-        throw new Error('Supabase HTTP ' + response.status);
+        throw new Error(
+            'Supabase HTTP ' + response.status
+        );
     }
 
     const rows = await response.json();
 
     if (!Array.isArray(rows)) {
-        throw new Error('Invalid product response');
+        throw new Error(
+            'Invalid product response'
+        );
     }
 
     return rows[0] || null;
 }
+
+// ============================================================
+// EXISTING META TAG UPDATER
+// ============================================================
 
 function replaceMeta(html, id, value) {
     const escapedId = id.replace(
@@ -189,8 +244,10 @@ function replaceMeta(html, id, value) {
     );
 
     return html.replace(regex, tag => {
-        const content = 'content="' +
-            escapeHtml(value) + '"';
+        const content =
+            'content="' +
+            escapeHtml(value) +
+            '"';
 
         if (/\bcontent=["'][^"']*["']/i.test(tag)) {
             return tag.replace(
@@ -198,128 +255,260 @@ function replaceMeta(html, id, value) {
                 content
             );
         }
-        return tag.replace(/>$/, ' ' + content + '>');
+
+        return tag.replace(
+            />$/,
+            ' ' + content + '>'
+        );
     });
 }
+
+// ============================================================
+// PRODUCT-SPECIFIC SEO HTML
+// ============================================================
 
 function buildProductHtml(product, slug, department) {
     let html = readHomepage();
 
     const code = String(product.code);
-    const fabric = cleanFabric(product.fabric);
-    const type = department === 'dupatta'
-        ? 'Dupatta'
-        : 'Saree';
+
+    const fabric = cleanFabric(
+        product.fabric
+    );
+
+    const type =
+        department === 'dupatta'
+            ? 'Dupatta'
+            : 'Saree';
 
     const name = fabric + ' ' + type;
-    const title = name + ' ' + code + ' | Kailash Kalamkari';
+
+    const title =
+        name +
+        ' ' +
+        code +
+        ' | Kailash Kalamkari';
 
     const description = String(
         product.description ||
         (
             'Explore Srikalahasthi Pen Kalamkari ' +
-            name + ', style code ' + code +
+            name +
+            ', style code ' +
+            code +
             ', at Kailash Kalamkari.'
         )
     ).trim();
 
-    const rawMrp = Number(product.mrp) > 0
-        ? Number(product.mrp)
-        : Number(product.price || 0);
+    // Keep the same MRP and discount formula as
+    // the existing browser script.js.
+    const rawMrp =
+        Number(product.mrp) > 0
+            ? Number(product.mrp)
+            : Number(product.price || 0);
 
-    if (!Number.isFinite(rawMrp) || rawMrp <= 0) {
-        throw new Error('Invalid product MRP');
+    if (
+        !Number.isFinite(rawMrp) ||
+        rawMrp <= 0
+    ) {
+        throw new Error(
+            'Invalid product MRP'
+        );
     }
 
     const sellingPrice = Math.round(
-        rawMrp * (1 - DISCOUNT_PERCENT / 100)
+        rawMrp * (
+            1 - DISCOUNT_PERCENT / 100
+        )
     );
 
-    const canonical = SITE +
-        '/?department=' + department +
-        '&product=' + encodeURIComponent(slug);
+    const canonical =
+        SITE +
+        '/?department=' +
+        department +
+        '&product=' +
+        encodeURIComponent(slug);
 
     const image = getImage(product);
 
+    // Existing Preview availability behavior.
+    // A separate inventory consistency review is pending.
     const available =
         product.is_available !== false &&
         Number(product.qty || 0) > 0;
 
+    // ========================================================
+    // SCHEMA.ORG PRODUCT DATA
+    // ========================================================
+
     const schema = {
         '@context': 'https://schema.org',
         '@type': 'Product',
-        name,
+
+        name: name,
         sku: code,
-        description,
+        description: description,
+
         image: [image],
         url: canonical,
+
         brand: {
             '@type': 'Brand',
             name: 'Kailash Kalamkari'
         },
+
         offers: {
             '@type': 'Offer',
+
             url: canonical,
             priceCurrency: 'INR',
             price: sellingPrice,
+
             availability: available
                 ? 'https://schema.org/InStock'
                 : 'https://schema.org/OutOfStock',
-            itemCondition: 'https://schema.org/NewCondition'
+
+            itemCondition:
+                'https://schema.org/NewCondition'
         }
     };
 
-    // Unique page title
+    // ========================================================
+    // PAGE TITLE
+    // ========================================================
+
     html = html.replace(
         /<title>[\s\S]*?<\/title>/i,
-        '<title>' + escapeHtml(title) + '</title>'
+        '<title>' +
+        escapeHtml(title) +
+        '</title>'
     );
 
-    // Canonical production URL
+    // ========================================================
+    // CANONICAL URL
+    // ========================================================
+
     html = html.replace(
         /<link\b(?=[^>]*\brel=["']canonical["'])[^>]*>/i,
-        '<link rel="canonical" id="canonical-url" href="' +
-        escapeHtml(canonical) + '">'
+
+        '<link rel="canonical" ' +
+        'id="canonical-url" ' +
+        'href="' +
+        escapeHtml(canonical) +
+        '">'
     );
 
-    // Unique description
+    // ========================================================
+    // META DESCRIPTION
+    // ========================================================
+
     html = html.replace(
         /<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/i,
+
         '<meta name="description" content="' +
-        escapeHtml(description) + '">'
+        escapeHtml(description) +
+        '">'
     );
+
+    // ========================================================
+    // SOCIAL SHARING METADATA
+    // ========================================================
 
     const social = [
         ['og-title', title],
         ['og-desc', description],
         ['og-image', image],
         ['og-url', canonical],
+
         ['twitter-title', title],
         ['twitter-desc', description],
         ['twitter-image', image]
     ];
 
     for (const [id, value] of social) {
-        html = replaceMeta(html, id, value);
+        html = replaceMeta(
+            html,
+            id,
+            value
+        );
     }
 
-    // Add Product JSON-LD.
-    const metadata = `
-<meta name="kk-server-product" content="${escapeHtml(code)}">
-<script type="application/ld+json">${safeJson(schema)}</script>
-`;
+    // ========================================================
+    // PRODUCT STRUCTURED DATA — DUPLICATE FIX
+    // ========================================================
 
-    html = html.replace('</head>', metadata + '</head>');
+    // The original home.html already includes:
+    //
+    // <script
+    //   type="application/ld+json"
+    //   id="dynamic-product-schema"
+    // ></script>
+    //
+    // Populate that same script element instead of
+    // inserting a second Product JSON-LD element.
+    //
+    // The existing browser script.js can continue
+    // updating this element during product navigation.
 
-    // No extra visible summary is inserted:
-    // Existing website UI and product JS remain unchanged.
+    const schemaElementPattern =
+        /<script\b(?=[^>]*\bid=["']dynamic-product-schema["'])[^>]*>[\s\S]*?<\/script>/i;
+
+    if (!schemaElementPattern.test(html)) {
+        throw new Error(
+            'Product schema placeholder missing'
+        );
+    }
+
+    html = html.replace(
+        schemaElementPattern,
+
+        '<script ' +
+        'type="application/ld+json" ' +
+        'id="dynamic-product-schema">' +
+        safeJson(schema) +
+        '</script>'
+    );
+
+    // ========================================================
+    // SERVER-SIDE SEO VERIFICATION MARKER
+    // ========================================================
+
+    const marker =
+        '<meta name="kk-server-product" ' +
+        'content="' +
+        escapeHtml(code) +
+        '">';
+
+    html = html.replace(
+        '</head>',
+        marker + '\n</head>'
+    );
+
+    // ========================================================
+    // PRESERVE EXISTING USER INTERFACE
+    // ========================================================
+
+    // Do not inject a second visible product section.
+    // Existing script.js populates the product detail UI.
+    // Styles, buttons, layout and navigation stay unchanged.
+
     return html;
 }
 
+// ============================================================
+// VERCEL FUNCTION
+// ============================================================
+
 module.exports = async function handler(req, res) {
     if (req.method !== 'GET') {
-        res.setHeader('Allow', 'GET');
-        return res.status(405).send('Method not allowed');
+        res.setHeader(
+            'Allow',
+            'GET'
+        );
+
+        return res
+            .status(405)
+            .send('Method not allowed');
     }
 
     let params;
@@ -327,69 +516,122 @@ module.exports = async function handler(req, res) {
     try {
         params = getParams(req);
     } catch (error) {
-        return res.status(400).send('Invalid request');
+        return res
+            .status(400)
+            .send('Invalid request');
     }
 
     const slug = params.product;
     const department = params.department;
 
-    // Original homepage when there is no product.
+    // ========================================================
+    // HOMEPAGE REQUEST
+    // ========================================================
+
     if (!slug) {
         try {
-            return sendHtml(res, 200, readHomepage());
-        } catch (error) {
-            console.error('Homepage error:', error.message);
-            return res.status(503).send(
-                'Homepage temporarily unavailable'
+            return sendHtml(
+                res,
+                200,
+                readHomepage()
             );
+        } catch (error) {
+            console.error(
+                'Homepage error:',
+                error.message
+            );
+
+            return res
+                .status(503)
+                .send(
+                    'Homepage temporarily unavailable'
+                );
         }
     }
 
-    // Validate product URL.
+    // ========================================================
+    // VALIDATE PRODUCT URL
+    // ========================================================
+
     if (
         !/^[a-z0-9-]{1,200}$/i.test(slug) ||
         !['saree', 'dupatta'].includes(department)
     ) {
-        return res.status(404).send('Product not found');
+        return res
+            .status(404)
+            .send('Product not found');
     }
 
-    const match = slug.match(/-([A-Za-z0-9]+)$/);
+    const match = slug.match(
+        /-([A-Za-z0-9]+)$/
+    );
 
     if (!match) {
-        return res.status(404).send('Product not found');
+        return res
+            .status(404)
+            .send('Product not found');
     }
 
+    // ========================================================
+    // FIND PRODUCT AND GENERATE SEO HTML
+    // ========================================================
+
     try {
-        const product = await findProduct(match[1]);
+        const product = await findProduct(
+            match[1]
+        );
 
         if (!product) {
-            return res.status(404).send('Product not found');
+            return res
+                .status(404)
+                .send('Product not found');
         }
 
-        const expectedSlug = makeSlug(product);
-        const expectedDepartment = departmentFor(product);
+        const expectedSlug =
+            makeSlug(product);
+
+        const expectedDepartment =
+            departmentFor(product);
 
         if (
-            expectedSlug.toLowerCase() !== slug.toLowerCase() ||
+            expectedSlug.toLowerCase() !==
+                slug.toLowerCase() ||
             expectedDepartment !== department
         ) {
-            return res.status(404).send(
-                'Product URL not found'
-            );
+            return res
+                .status(404)
+                .send(
+                    'Product URL not found'
+                );
         }
+
+        const productHtml = buildProductHtml(
+            product,
+            slug,
+            department
+        );
 
         return sendHtml(
             res,
             200,
-            buildProductHtml(product, slug, department)
+            productHtml
         );
 
     } catch (error) {
-        console.error('Product SEO error:', error.message);
-
-        res.setHeader('Retry-After', '60');
-        return res.status(503).send(
-            'Product temporarily unavailable'
+        console.error(
+            'Product SEO error:',
+            error.message
         );
+
+        res.setHeader(
+            'Retry-After',
+            '60'
+        );
+
+        return res
+            .status(503)
+            .send(
+                'Product temporarily unavailable'
+            );
     }
 };
