@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const SITE = 'https://www.kailash-kalamkari.com';
-const DISCOUNT_PERCENT = 10;
+
 const IMAGE_CDN =
     'https://kalamkari-images.kailashakalamkariacc.workers.dev';
 
@@ -30,7 +30,7 @@ function safeJson(value) {
 }
 
 // ============================================================
-// ORIGINAL WEBSITE TEMPLATE
+// WEBSITE FILES
 // ============================================================
 
 function readHomepage() {
@@ -39,6 +39,54 @@ function readHomepage() {
         'utf8'
     );
 }
+
+function readWebsiteScript() {
+    return fs.readFileSync(
+        path.join(process.cwd(), 'script.js'),
+        'utf8'
+    );
+}
+
+// ============================================================
+// CENTRAL DISCOUNT
+// ============================================================
+
+// The existing script.js is the single source of truth.
+// The Google Merchant feed generator also reads this value.
+//
+// Do not create a second independent discount percentage.
+
+function getDiscountPercent() {
+    const script = readWebsiteScript();
+
+    const match = script.match(
+        /\bconst\s+GLOBAL_DISCOUNT_PERCENTAGE\s*=\s*(\d+(?:\.\d+)?)\s*;/
+    );
+
+    if (!match) {
+        throw new Error(
+            'Global website discount configuration missing'
+        );
+    }
+
+    const discount = Number(match[1]);
+
+    if (
+        !Number.isFinite(discount) ||
+        discount < 0 ||
+        discount > 99
+    ) {
+        throw new Error(
+            'Invalid global website discount'
+        );
+    }
+
+    return discount;
+}
+
+// ============================================================
+// RESPONSE HANDLING
+// ============================================================
 
 function sendHtml(res, status, html) {
     res.setHeader(
@@ -75,7 +123,9 @@ function getParams(req) {
             return value.trim();
         }
 
-        return (url.searchParams.get(name) || '').trim();
+        return (
+            url.searchParams.get(name) || ''
+        ).trim();
     }
 
     return {
@@ -85,12 +135,15 @@ function getParams(req) {
 }
 
 // ============================================================
-// PRODUCT FABRIC / DEPARTMENT / SLUG
+// PRODUCT URL GENERATION
 // ============================================================
 
 function cleanFabric(value) {
     return String(value || 'Silk')
-        .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
+        .replace(
+            /\b(sarees?|dupp?att?as?)\b/gi,
+            ''
+        )
         .replace(/\s+/g, ' ')
         .trim() || 'Silk';
 }
@@ -108,7 +161,9 @@ function departmentFor(product) {
 }
 
 function makeSlug(product) {
-    const fabric = cleanFabric(product.fabric)
+    const fabric = cleanFabric(
+        product.fabric
+    )
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
@@ -126,7 +181,9 @@ function makeSlug(product) {
 // ============================================================
 
 function fileId(value) {
-    const str = String(value || '').trim();
+    const str = String(
+        value || ''
+    ).trim();
 
     const match =
         str.match(/\/d\/([A-Za-z0-9_-]+)/) ||
@@ -164,12 +221,65 @@ function getImage(product) {
     }
 
     for (const value of values) {
-        if (/^https:\/\//i.test(String(value || ''))) {
+        if (
+            /^https:\/\//i.test(
+                String(value || '')
+            )
+        ) {
             return String(value);
         }
     }
 
     return SITE + '/logo.jpg';
+}
+
+// ============================================================
+// PRODUCT AVAILABILITY
+// ============================================================
+
+// Mirrors the existing frontend script.js behavior:
+// - Missing quantity defaults to 1.
+// - Invalid quantity becomes 0.
+// - Explicit unavailable status overrides quantity.
+// - Null is_available does not automatically mean unavailable.
+//
+// No changes are made to database inventory records.
+
+function isProductAvailable(product) {
+    const rawQuantity = product.qty;
+
+    let quantity =
+        rawQuantity === null ||
+        rawQuantity === undefined ||
+        String(rawQuantity).trim() === ''
+            ? 1
+            : Number(rawQuantity);
+
+    if (!Number.isFinite(quantity)) {
+        quantity = 0;
+    }
+
+    const availability = String(
+        product.is_available ??
+        product.availability ??
+        ''
+    ).trim().toLowerCase();
+
+    const unavailableValues = [
+        'false',
+        '0',
+        'no',
+        'out_of_stock',
+        'out of stock',
+        'sold out',
+        'unavailable'
+    ];
+
+    if (unavailableValues.includes(availability)) {
+        quantity = 0;
+    }
+
+    return quantity > 0;
 }
 
 // ============================================================
@@ -196,22 +306,37 @@ async function findProduct(code) {
         base
     );
 
-    endpoint.searchParams.set('select', '*');
-    endpoint.searchParams.set('code', 'eq.' + code);
-    endpoint.searchParams.set('limit', '1');
+    endpoint.searchParams.set(
+        'select',
+        '*'
+    );
 
-    const response = await fetch(endpoint, {
-        headers: {
-            apikey: key,
-            Authorization: 'Bearer ' + key,
-            Accept: 'application/json'
-        },
-        signal: AbortSignal.timeout(8000)
-    });
+    endpoint.searchParams.set(
+        'code',
+        'eq.' + code
+    );
+
+    endpoint.searchParams.set(
+        'limit',
+        '1'
+    );
+
+    const response = await fetch(
+        endpoint,
+        {
+            headers: {
+                apikey: key,
+                Authorization: 'Bearer ' + key,
+                Accept: 'application/json'
+            },
+            signal: AbortSignal.timeout(8000)
+        }
+    );
 
     if (!response.ok) {
         throw new Error(
-            'Supabase HTTP ' + response.status
+            'Supabase HTTP ' +
+            response.status
         );
     }
 
@@ -227,7 +352,7 @@ async function findProduct(code) {
 }
 
 // ============================================================
-// EXISTING META TAG UPDATER
+// META TAG UPDATER
 // ============================================================
 
 function replaceMeta(html, id, value) {
@@ -249,7 +374,11 @@ function replaceMeta(html, id, value) {
             escapeHtml(value) +
             '"';
 
-        if (/\bcontent=["'][^"']*["']/i.test(tag)) {
+        if (
+            /\bcontent=["'][^"']*["']/i.test(
+                tag
+            )
+        ) {
             return tag.replace(
                 /\bcontent=["'][^"']*["']/i,
                 content
@@ -264,13 +393,19 @@ function replaceMeta(html, id, value) {
 }
 
 // ============================================================
-// PRODUCT-SPECIFIC SEO HTML
+// PRODUCT SEO HTML
 // ============================================================
 
-function buildProductHtml(product, slug, department) {
+function buildProductHtml(
+    product,
+    slug,
+    department
+) {
     let html = readHomepage();
 
-    const code = String(product.code);
+    const code = String(
+        product.code
+    );
 
     const fabric = cleanFabric(
         product.fabric
@@ -281,7 +416,8 @@ function buildProductHtml(product, slug, department) {
             ? 'Dupatta'
             : 'Saree';
 
-    const name = fabric + ' ' + type;
+    const name =
+        fabric + ' ' + type;
 
     const title =
         name +
@@ -300,8 +436,14 @@ function buildProductHtml(product, slug, department) {
         )
     ).trim();
 
-    // Keep the same MRP and discount formula as
-    // the existing browser script.js.
+    // ========================================================
+    // PRICING
+    // ========================================================
+
+    // Same pricing rules as script.js:
+    // Use MRP if present, otherwise source price.
+    // Apply the global website discount.
+
     const rawMrp =
         Number(product.mrp) > 0
             ? Number(product.mrp)
@@ -316,11 +458,17 @@ function buildProductHtml(product, slug, department) {
         );
     }
 
+    const discount =
+        getDiscountPercent();
+
     const sellingPrice = Math.round(
-        rawMrp * (
-            1 - DISCOUNT_PERCENT / 100
-        )
+        rawMrp *
+        (1 - discount / 100)
     );
+
+    // ========================================================
+    // CANONICAL URL
+    // ========================================================
 
     const canonical =
         SITE +
@@ -329,16 +477,14 @@ function buildProductHtml(product, slug, department) {
         '&product=' +
         encodeURIComponent(slug);
 
-    const image = getImage(product);
+    const image =
+        getImage(product);
 
-    // Existing Preview availability behavior.
-    // A separate inventory consistency review is pending.
     const available =
-        product.is_available !== false &&
-        Number(product.qty || 0) > 0;
+        isProductAvailable(product);
 
     // ========================================================
-    // SCHEMA.ORG PRODUCT DATA
+    // PRODUCT STRUCTURED DATA
     // ========================================================
 
     const schema = {
@@ -347,8 +493,8 @@ function buildProductHtml(product, slug, department) {
 
         name: name,
         sku: code,
-        description: description,
 
+        description: description,
         image: [image],
         url: canonical,
 
@@ -361,7 +507,9 @@ function buildProductHtml(product, slug, department) {
             '@type': 'Offer',
 
             url: canonical,
+
             priceCurrency: 'INR',
+
             price: sellingPrice,
 
             availability: available
@@ -374,18 +522,19 @@ function buildProductHtml(product, slug, department) {
     };
 
     // ========================================================
-    // PAGE TITLE
+    // TITLE
     // ========================================================
 
     html = html.replace(
         /<title>[\s\S]*?<\/title>/i,
+
         '<title>' +
         escapeHtml(title) +
         '</title>'
     );
 
     // ========================================================
-    // CANONICAL URL
+    // CANONICAL META TAG
     // ========================================================
 
     html = html.replace(
@@ -399,7 +548,7 @@ function buildProductHtml(product, slug, department) {
     );
 
     // ========================================================
-    // META DESCRIPTION
+    // DESCRIPTION META TAG
     // ========================================================
 
     html = html.replace(
@@ -434,21 +583,11 @@ function buildProductHtml(product, slug, department) {
     }
 
     // ========================================================
-    // PRODUCT STRUCTURED DATA — DUPLICATE FIX
+    // ONE PRODUCT JSON-LD ELEMENT
     // ========================================================
 
-    // The original home.html already includes:
-    //
-    // <script
-    //   type="application/ld+json"
-    //   id="dynamic-product-schema"
-    // ></script>
-    //
-    // Populate that same script element instead of
-    // inserting a second Product JSON-LD element.
-    //
-    // The existing browser script.js can continue
-    // updating this element during product navigation.
+    // Reuse the original schema placeholder.
+    // Do not create a duplicate Product script.
 
     const schemaElementPattern =
         /<script\b(?=[^>]*\bid=["']dynamic-product-schema["'])[^>]*>[\s\S]*?<\/script>/i;
@@ -470,7 +609,7 @@ function buildProductHtml(product, slug, department) {
     );
 
     // ========================================================
-    // SERVER-SIDE SEO VERIFICATION MARKER
+    // SEO VERIFICATION MARKER
     // ========================================================
 
     const marker =
@@ -484,22 +623,21 @@ function buildProductHtml(product, slug, department) {
         marker + '\n</head>'
     );
 
-    // ========================================================
-    // PRESERVE EXISTING USER INTERFACE
-    // ========================================================
-
-    // Do not inject a second visible product section.
-    // Existing script.js populates the product detail UI.
-    // Styles, buttons, layout and navigation stay unchanged.
+    // Keep the existing product detail HTML and UI.
+    // Browser script.js still handles rendering,
+    // navigation, wishlist and WhatsApp buttons.
 
     return html;
 }
 
 // ============================================================
-// VERCEL FUNCTION
+// VERCEL SERVERLESS HANDLER
 // ============================================================
 
-module.exports = async function handler(req, res) {
+module.exports = async function handler(
+    req,
+    res
+) {
     if (req.method !== 'GET') {
         res.setHeader(
             'Allow',
@@ -521,11 +659,14 @@ module.exports = async function handler(req, res) {
             .send('Invalid request');
     }
 
-    const slug = params.product;
-    const department = params.department;
+    const slug =
+        params.product;
+
+    const department =
+        params.department;
 
     // ========================================================
-    // HOMEPAGE REQUEST
+    // HOMEPAGE
     // ========================================================
 
     if (!slug) {
@@ -550,12 +691,14 @@ module.exports = async function handler(req, res) {
     }
 
     // ========================================================
-    // VALIDATE PRODUCT URL
+    // PRODUCT URL VALIDATION
     // ========================================================
 
     if (
         !/^[a-z0-9-]{1,200}$/i.test(slug) ||
-        !['saree', 'dupatta'].includes(department)
+        !['saree', 'dupatta'].includes(
+            department
+        )
     ) {
         return res
             .status(404)
@@ -573,7 +716,7 @@ module.exports = async function handler(req, res) {
     }
 
     // ========================================================
-    // FIND PRODUCT AND GENERATE SEO HTML
+    // FETCH PRODUCT AND GENERATE SEO
     // ========================================================
 
     try {
@@ -605,7 +748,7 @@ module.exports = async function handler(req, res) {
                 );
         }
 
-        const productHtml = buildProductHtml(
+        const html = buildProductHtml(
             product,
             slug,
             department
@@ -614,7 +757,7 @@ module.exports = async function handler(req, res) {
         return sendHtml(
             res,
             200,
-            productHtml
+            html
         );
 
     } catch (error) {

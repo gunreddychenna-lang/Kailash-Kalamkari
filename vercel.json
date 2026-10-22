@@ -2,7 +2,7 @@
 {
   "functions": {
     "api/product-page.js": {
-      "includeFiles": "home.html"
+      "includeFiles": "*.{html,js}"
     }
   },
   "headers": [
