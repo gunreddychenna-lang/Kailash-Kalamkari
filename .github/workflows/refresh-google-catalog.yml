@@ -1,0 +1,132 @@
+
+name: Refresh Google Catalog
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 08:30 AM IST every day (03:00 UTC)
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-google-catalog
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate Merchant feed
+        run: python generate_merchant_feed.py
+
+      - name: Generate sitemap
+        run: python generate_sitemap.py
+
+      - name: Validate generated files
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          rows = list(
+              csv.DictReader(
+                  Path("products.csv").open(
+                      encoding="utf-8-sig",
+                      newline=""
+                  )
+              )
+          )
+
+          backup = json.loads(
+              Path("catalog-backup.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          sitemap = ET.parse("sitemap.xml")
+          urls = sitemap.findall(
+              ".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
+          )
+
+          count = len(rows)
+
+          if count < 1000:
+              raise SystemExit(
+                  f"SAFETY BLOCK: Only {count} products."
+              )
+
+          if len(urls) != count + 3:
+              raise SystemExit(
+                  "SAFETY BLOCK: Sitemap count mismatch."
+              )
+
+          if any(
+              row.get("availability") != "in_stock"
+              for row in rows
+          ):
+              raise SystemExit(
+                  "SAFETY BLOCK: Out-of-stock feed item."
+              )
+
+          if any(
+              float(row["price"].split()[0]) <= 0
+              for row in rows
+          ):
+              raise SystemExit(
+                  "SAFETY BLOCK: Invalid product price."
+              )
+
+          print(f"Feed products: {count}")
+          print(f"Sitemap URLs: {len(urls)}")
+          print("Validation passed.")
+          PY
+
+      - name: Check changes
+        id: changes
+        shell: bash
+        run: |
+          git add -- \
+            products.csv \
+            sitemap.xml \
+            catalog-backup.json
+
+          git diff --cached --check
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No catalog changes."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --cached --stat
+          fi
+
+      - name: Publish updated catalog
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit \
+            -m "Auto-refresh Google feed and sitemap"
+
+          git push origin HEAD:main
