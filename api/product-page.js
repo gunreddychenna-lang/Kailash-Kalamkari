@@ -1,5 +1,4 @@
-﻿
-'use strict';
+﻿'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -396,6 +395,16 @@ function replaceMeta(html, id, value) {
 // PRODUCT SEO HTML
 // ============================================================
 
+// KK_SEMI_CRAPE_FIX_V2 — fabric display, not URL change.
+function isSemiCrapeProduct(product) {
+    const text = [product.fabric, product.category].join(' ');
+    const code = String(product.code || '');
+    return (
+        /\bsemi[\s-]*(?:crape|crepe)\b/i.test(text) ||
+        /\b(?:crape|crepe)\s+(?:pure\s+)?semi\b/i.test(text) ||
+        /^[CD]CP\d+$/i.test(code)
+    );
+}
 function buildProductHtml(
     product,
     slug,
@@ -407,9 +416,9 @@ function buildProductHtml(
         product.code
     );
 
-    const fabric = cleanFabric(
-        product.fabric
-    );
+    const fabric = isSemiCrapeProduct(product)
+        ? 'Semi Crape'
+        : cleanFabric(product.fabric);
 
     const type =
         department === 'dupatta'
@@ -426,7 +435,7 @@ function buildProductHtml(
         ' | Kailash Kalamkari';
 
     const description = String(
-        product.description ||
+        (isSemiCrapeProduct(product) ? '' : product.description) ||
         (
             'Explore Srikalahasthi Pen Kalamkari ' +
             name +
@@ -724,7 +733,11 @@ module.exports = async function handler(
             match[1]
         );
 
-        if (!product) {
+        if (!product || !isProductAvailable(product) ||
+            product.is_available !== true) {
+            // Do not publish pricing or Product structured data for stock
+            // excluded from the verified active catalogue.
+            res.setHeader('X-Robots-Tag', 'noindex');
             return res
                 .status(404)
                 .send('Product not found');

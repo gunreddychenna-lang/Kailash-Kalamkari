@@ -335,9 +335,19 @@ function attachProductImage(imgElement, product) {
 // PRODUCT LINKS AND METADATA
 // =========================================================================
 
+// KK_SEMI_CRAPE_FIX_V2 — fabric display, not URL change.
+function isSemiCrapeProduct(product) {
+    const text = [product.fabric, product.category].join(' ');
+    const code = String(product.code || '');
+    return (
+        /\bsemi[\s-]*(?:crape|crepe)\b/i.test(text) ||
+        /\b(?:crape|crepe)\s+(?:pure\s+)?semi\b/i.test(text) ||
+        /^[CD]CP\d+$/i.test(code)
+    );
+}
 function getProductSlug(product) {
     const cleanFabric =
-        (product.fabric || 'silk')
+        (product.slugFabric || product.fabric || 'silk')
             .toLowerCase()
             .replace(/\b(sarees?|dupp?att?as?)\b/gi, '')
             .replace(/[^a-z0-9]+/g, '-')
@@ -481,7 +491,9 @@ function updateGoogleImageSchemaAndMeta(product) {
             name: fullOptimizedTitle,
             image: [imageUrl],
             description:
-                product.description || pageDescription,
+                product.fabric === 'Semi Crape'
+                    ? pageDescription
+                    : (product.description || pageDescription),
             sku: product.code,
 
             brand: {
@@ -997,8 +1009,12 @@ function processRawCatalogData(rawData) {
                     )
                     .trim() || 'Pure Silk';
 
+            const displayFabric = isSemiCrapeProduct({
+                code, fabric: rawFabric, category
+            }) ? 'Semi Crape' : cleanFabric;
+
             const title =
-                `${cleanFabric} ${departmentLabel}`;
+                `${displayFabric} ${departmentLabel}`;
 
             const imageLink = String(
                 getFieldValue(item, [
@@ -1114,7 +1130,8 @@ function processRawCatalogData(rawData) {
             return {
                 code,
                 title,
-                fabric: cleanFabric,
+                fabric: displayFabric,
+                slugFabric: cleanFabric,
                 category,
                 department: rawDepartment,
                 departmentKey,
@@ -1134,6 +1151,7 @@ function processRawCatalogData(rawData) {
             product =>
                 product.code &&
                 product.mrp > 0 &&
+                product.qty > 0 &&
                 (
                     product.imageId ||
                     product.imageLink ||
@@ -1287,109 +1305,36 @@ function requireCatalog(rows) {
 }
 
 async function fetchFreshCatalogData() {
-    // Warm the same-origin raw backup while trying the current live catalogue.
-    // The backup never wins a race against a successful live request.
-    const backupRequest = fetchCatalogPayload('catalog-backup.json', {}, 'json', 5000)
-        .then(requireCatalog).catch(() => null);
-    try {
-        const rows = [];
-        const batchSize = 1000;
+    // Inventory safety: only the live Supabase status is authoritative.
+    // Static JSON, published CSV, Apps Script and browser cache may contain
+    // previously available products, so must not republish sold-out items.
+    const rows = [];
+    const batchSize = 1000;
+    const deadline = Date.now() + 12000;
 
-        const deadline = Date.now() + 6000;
-
-        for (
-            let from = 0;
-            ;
-            from += batchSize
-        ) {
-            const remainingMs =
-                deadline - Date.now();
-
-            if (remainingMs <= 0) {
-                throw new Error(
-                    'Catalogue pagination timed out'
-                );
-            }
-
-            const url =
-                `${SUPABASE_URL}/rest/v1/products` +
-                `?select=*&order=code.asc` +
-                `&offset=${from}&limit=${batchSize}`;
-
-            const chunk =
-                await fetchCatalogPayload(
-                    url,
-                    {
-                        headers: {
-                            apikey: SUPABASE_KEY,
-                            Authorization:
-                                `Bearer ${SUPABASE_KEY}`
-                        }
-                    },
-                    'json',
-                    Math.min(2500, remainingMs)
-                );
-
-            if (!Array.isArray(chunk)) {
-                throw new Error(
-                    'Invalid catalogue response'
-                );
-            }
-
-            rows.push(...chunk);
-
-            if (chunk.length < batchSize) {
-                return requireCatalog(rows);
-            }
+    for (let from = 0; ; from += batchSize) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+            throw new Error('Catalogue pagination timed out');
         }
-    } catch (_) {
-        // Never replace a complete catalogue with partial pages.
+
+        const url = `${SUPABASE_URL}/rest/v1/products` +
+            `?select=*&is_available=eq.true&qty=gt.0` +
+            `&order=code.asc&offset=${from}&limit=${batchSize}`;
+
+        const chunk = await fetchCatalogPayload(url, {
+            headers: {
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`
+            }
+        }, 'json', Math.min(5000, remainingMs));
+
+        if (!Array.isArray(chunk)) {
+            throw new Error('Invalid catalogue response');
+        }
+        rows.push(...chunk);
+        if (chunk.length < batchSize) return requireCatalog(rows);
     }
-
-    const localBackup = await backupRequest;
-    if (localBackup) return localBackup;
-
-    // External backup sources are independent and run together.
-    // catalog-backup.json contains raw, undiscounted data.
-    return new Promise((resolve, reject) => {
-        const sources = [
-            [APPS_SCRIPT_API_URL, 'json'],
-            [PRIMARY_CSV_URL, 'csv'],
-            [BACKUP_CSV_URL, 'csv']
-        ];
-
-        let remaining = sources.length;
-        let settled = false;
-
-        sources.forEach(([url, format]) => {
-            fetchCatalogPayload(
-                url,
-                {},
-                format
-            )
-                .then(requireCatalog)
-                .then(rows => {
-                    if (!settled) {
-                        settled = true;
-                        resolve(rows);
-                    }
-                })
-                .catch(() => {
-                    remaining--;
-
-                    if (
-                        remaining === 0 &&
-                        !settled
-                    ) {
-                        reject(
-                            new Error(
-                                'All catalogue sources failed'
-                            )
-                        );
-                    }
-                });
-        });
-    });
 }
 
 async function loadAndApplyCatalog(
@@ -2796,7 +2741,11 @@ function renderWishlist() {
         return;
     }
 
-    if (wishlist.length === 0) {
+    const visibleWishlist = wishlist
+        .map(saved => allProducts.find(item => item.code === saved.code))
+        .filter(Boolean);
+
+    if (visibleWishlist.length === 0) {
         elements.wishlistGrid.style.display =
             'none';
 
@@ -2814,7 +2763,7 @@ function renderWishlist() {
         }
 
         renderProducts(
-            wishlist,
+            visibleWishlist,
             elements.wishlistGrid
         );
     }
@@ -2944,7 +2893,9 @@ function filterAndSearchProducts() {
 // =========================================================================
 
 function buyNow(product = currentProduct) {
-    if (!product) {
+    if (!product || product.qty <= 0 ||
+        !allProducts.some(item => item.code === product.code && item.qty > 0)) {
+        showToast('This artwork is currently unavailable.');
         return;
     }
 
@@ -2986,7 +2937,9 @@ function buyNow(product = currentProduct) {
 function bookVideoCall(
     product = currentProduct
 ) {
-    if (!product) {
+    if (!product || product.qty <= 0 ||
+        !allProducts.some(item => item.code === product.code && item.qty > 0)) {
+        showToast('This artwork is currently unavailable.');
         return;
     }
 
@@ -3518,116 +3471,18 @@ function handlePopState() {
 // =========================================================================
 
 async function init() {
-    if (
-        'scrollRestoration' in history
-    ) {
-        history.scrollRestoration =
-            'manual';
+    if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
     }
 
     updateWishlistCount();
     setupEventListeners();
 
-    const cachedDataString =
-        safeStorage.getItem(
-            CACHE_STORAGE_KEY
-        );
-
-    let hasRenderedFromCache = false;
-
-    if (cachedDataString) {
-        try {
-            const cachedRaw =
-                JSON.parse(
-                    cachedDataString
-                );
-
-            if (
-                Array.isArray(cachedRaw) &&
-                cachedRaw.length > 0
-            ) {
-                const processed =
-                    processRawCatalogData(
-                        cachedRaw
-                    );
-
-                if (
-                    processed.length > 0
-                ) {
-                    allProducts =
-                        sortProductsByPrice(
-                            processed
-                        );
-
-                    refreshSavedProducts();
-
-                    filteredProducts =
-                        sortProductsByPrice(
-                            getDepartmentProducts()
-                        );
-
-                    if (
-                        elements.spinner
-                    ) {
-                        elements.spinner.style.display =
-                            'none';
-                    }
-
-                    updateDepartmentUI();
-
-                    const parameters =
-                        new URLSearchParams(
-                            window.location.search
-                        );
-
-                    const initialFabric =
-                        parameters.get('fabric') ||
-                        'all';
-
-                    renderFilterButtons(
-                        initialFabric
-                    );
-
-                    syncFabricFilterUI(
-                        initialFabric
-                    );
-
-                    hasRenderedFromCache =
-                        true;
-
-                    handlePopState();
-                }
-            }
-        } catch (_) {
-            safeStorage.removeItem(
-                CACHE_STORAGE_KEY
-            );
-        }
-    }
-
-    if (!hasRenderedFromCache) {
-        await loadAndApplyCatalog(
-            false
-        );
-
-        handlePopState();
-    } else {
-        const lastSync = Number(
-            safeStorage.getItem(
-                CACHE_TIME_KEY
-            ) || 0
-        );
-
-        if (
-            Date.now() - lastSync >
-            CACHE_TTL_MS
-        ) {
-            loadAndApplyCatalog(
-                true
-            );
-        }
-    }
-
+    // Do not render cached inventory: it can contain items removed from Drive.
+    // A live inventory request must succeed before products become purchasable.
+    safeStorage.removeItem(CACHE_STORAGE_KEY);
+    safeStorage.removeItem(CACHE_TIME_KEY);
+    await loadAndApplyCatalog(false);
     isInitialLoad = false;
 }
 
