@@ -1,0 +1,237 @@
+
+name: Refresh Google Catalog
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # Every day at 08:30 AM IST (03:00 UTC)
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-google-catalog
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Generate and Validate Google Catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ------------------------------------------------------
+      # STEP 1: CHECKOUT WEBSITE REPOSITORY
+      # ------------------------------------------------------
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      # ------------------------------------------------------
+      # STEP 2: SETUP PYTHON
+      # ------------------------------------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ------------------------------------------------------
+      # STEP 3: GENERATE LATEST GOOGLE MERCHANT FEED
+      # ------------------------------------------------------
+      - name: Generate Merchant feed
+        run: python generate_merchant_feed.py
+
+      # ------------------------------------------------------
+      # STEP 4: GENERATE LATEST SITEMAP
+      # ------------------------------------------------------
+      - name: Generate sitemap
+        run: python generate_sitemap.py
+
+      # ------------------------------------------------------
+      # STEP 5: VALIDATE INVENTORY AND SEO FILES
+      # ------------------------------------------------------
+      - name: Validate generated files
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          feed_path = Path("products.csv")
+          backup_path = Path("catalog-backup.json")
+          sitemap_path = Path("sitemap.xml")
+
+          for path in (
+              feed_path,
+              backup_path,
+              sitemap_path,
+          ):
+              if not path.is_file():
+                  raise SystemExit(
+                      f"SAFETY BLOCK: Missing {path}"
+                  )
+
+          with feed_path.open(
+              encoding="utf-8-sig",
+              newline=""
+          ) as handle:
+              rows = list(csv.DictReader(handle))
+
+          # Ensure backup is valid JSON.
+          with backup_path.open(
+              encoding="utf-8"
+          ) as handle:
+              json.load(handle)
+
+          sitemap = ET.parse(sitemap_path)
+
+          namespace = (
+              "{http://www.sitemaps.org/"
+              "schemas/sitemap/0.9}"
+          )
+
+          urls = [
+              element.text
+              for element in sitemap.findall(
+                  f".//{namespace}loc"
+              )
+          ]
+
+          count = len(rows)
+
+          # Temporary minimum-stock safety limit.
+          MIN_ACTIVE_PRODUCTS = 1000
+
+          if count < MIN_ACTIVE_PRODUCTS:
+              raise SystemExit(
+                  "SAFETY BLOCK: Active products "
+                  f"{count} below minimum "
+                  f"{MIN_ACTIVE_PRODUCTS}."
+              )
+
+          if len(urls) != count + 3:
+              raise SystemExit(
+                  "SAFETY BLOCK: Sitemap count "
+                  "does not match feed."
+              )
+
+          ids = [row.get("id", "") for row in rows]
+
+          if len(ids) != len(set(ids)):
+              raise SystemExit(
+                  "SAFETY BLOCK: Duplicate product IDs."
+              )
+
+          for row in rows:
+              code = row.get("id", "UNKNOWN")
+
+              if row.get("availability") != "in_stock":
+                  raise SystemExit(
+                      f"SAFETY BLOCK: Sold-out item {code}"
+                  )
+
+              raw_price = row.get("price", "")
+
+              try:
+                  price = float(
+                      raw_price.split()[0]
+                  )
+              except (ValueError, IndexError):
+                  raise SystemExit(
+                      f"SAFETY BLOCK: Invalid price {code}"
+                  )
+
+              if price <= 0:
+                  raise SystemExit(
+                      f"SAFETY BLOCK: Zero price {code}"
+                  )
+
+              if not row.get("link"):
+                  raise SystemExit(
+                      f"SAFETY BLOCK: Missing URL {code}"
+                  )
+
+              if not row.get("image_link"):
+                  raise SystemExit(
+                      f"SAFETY BLOCK: Missing image {code}"
+                  )
+
+          print("VALIDATION PASSED")
+          print(f"Merchant products: {count}")
+          print(f"Sitemap URLs: {len(urls)}")
+          print("Zero-price products: 0")
+          print("Sold-out products in feed: 0")
+          PY
+
+      # ------------------------------------------------------
+      # STEP 6: CHECK FOR GENERATED FILE CHANGES
+      # ------------------------------------------------------
+      - name: Check changes
+        id: changes
+        shell: bash
+        run: |
+          git add -- \
+            catalog-backup.json \
+            products.csv \
+            sitemap.xml
+
+          git diff --cached --check
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No catalog changes detected."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --cached --stat
+          fi
+
+      # ------------------------------------------------------
+      # STEP 7: DRY RUN
+      # Manual runs must never publish to production.
+      # ------------------------------------------------------
+      - name: Dry-run summary
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          echo "DRY RUN COMPLETED"
+          echo "Generation and validation finished."
+          echo "No production push performed."
+
+      # ------------------------------------------------------
+      # STEP 8: AUTOMATIC PUBLISHING
+      # Only scheduled runs on main may publish.
+      # ------------------------------------------------------
+      - name: Publish updated catalog
+        if: ${{ steps.changes.outputs.changed == 'true' && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit \
+            -m "Auto-refresh Google feed and sitemap"
+
+          git push origin HEAD:main
+
+      # ------------------------------------------------------
+      # STEP 9: JOB SUMMARY
+      # ------------------------------------------------------
+      - name: Write summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Kailash Kalamkari Google Catalog"
+            echo ""
+            echo "- Catalog generated successfully"
+            echo "- Product and price validation passed"
+            echo "- Changes detected: ${{ steps.changes.outputs.changed }}"
+            echo "- Trigger: ${{ github.event_name }}"
+          } >> "$GITHUB_STEP_SUMMARY"
