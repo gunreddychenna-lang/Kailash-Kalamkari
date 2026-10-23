@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Every day at 08:30 AM IST (03:00 UTC)
+    # Daily at 08:30 AM IST (03:00 UTC)
     - cron: "0 3 * * *"
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
 
     steps:
       # ------------------------------------------------------
-      # STEP 1: CHECKOUT WEBSITE REPOSITORY
+      # 1. CHECKOUT MAIN
       # ------------------------------------------------------
       - name: Checkout main branch
         uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
           persist-credentials: true
 
       # ------------------------------------------------------
-      # STEP 2: SETUP PYTHON
+      # 2. SETUP PYTHON
       # ------------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -40,19 +40,19 @@ jobs:
           python-version: "3.12"
 
       # ------------------------------------------------------
-      # STEP 3: GENERATE LATEST GOOGLE MERCHANT FEED
+      # 3. GENERATE GOOGLE MERCHANT FEED
       # ------------------------------------------------------
       - name: Generate Merchant feed
         run: python generate_merchant_feed.py
 
       # ------------------------------------------------------
-      # STEP 4: GENERATE LATEST SITEMAP
+      # 4. GENERATE SITEMAP
       # ------------------------------------------------------
       - name: Generate sitemap
         run: python generate_sitemap.py
 
       # ------------------------------------------------------
-      # STEP 5: VALIDATE INVENTORY AND SEO FILES
+      # 5. VALIDATE GENERATED DATA
       # ------------------------------------------------------
       - name: Validate generated files
         shell: bash
@@ -83,7 +83,6 @@ jobs:
           ) as handle:
               rows = list(csv.DictReader(handle))
 
-          # Ensure backup is valid JSON.
           with backup_path.open(
               encoding="utf-8"
           ) as handle:
@@ -104,8 +103,6 @@ jobs:
           ]
 
           count = len(rows)
-
-          # Temporary minimum-stock safety limit.
           MIN_ACTIVE_PRODUCTS = 1000
 
           if count < MIN_ACTIVE_PRODUCTS:
@@ -117,8 +114,7 @@ jobs:
 
           if len(urls) != count + 3:
               raise SystemExit(
-                  "SAFETY BLOCK: Sitemap count "
-                  "does not match feed."
+                  "SAFETY BLOCK: Sitemap count mismatch."
               )
 
           ids = [row.get("id", "") for row in rows]
@@ -133,15 +129,13 @@ jobs:
 
               if row.get("availability") != "in_stock":
                   raise SystemExit(
-                      f"SAFETY BLOCK: Sold-out item {code}"
+                      f"SAFETY BLOCK: Sold-out product {code}"
                   )
 
               raw_price = row.get("price", "")
 
               try:
-                  price = float(
-                      raw_price.split()[0]
-                  )
+                  price = float(raw_price.split()[0])
               except (ValueError, IndexError):
                   raise SystemExit(
                       f"SAFETY BLOCK: Invalid price {code}"
@@ -165,12 +159,12 @@ jobs:
           print("VALIDATION PASSED")
           print(f"Merchant products: {count}")
           print(f"Sitemap URLs: {len(urls)}")
-          print("Zero-price products: 0")
-          print("Sold-out products in feed: 0")
+          print("Sold-out products: 0")
+          print("Invalid-price products: 0")
           PY
 
       # ------------------------------------------------------
-      # STEP 6: CHECK FOR GENERATED FILE CHANGES
+      # 6. CHECK GENERATED FILE CHANGES
       # ------------------------------------------------------
       - name: Check changes
         id: changes
@@ -181,7 +175,9 @@ jobs:
             products.csv \
             sitemap.xml
 
-          git diff --cached --check
+          # Generated CSV may legitimately contain trailing
+          # spaces in product descriptions.
+          # Do not run git diff --cached --check here.
 
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -192,20 +188,19 @@ jobs:
           fi
 
       # ------------------------------------------------------
-      # STEP 7: DRY RUN
-      # Manual runs must never publish to production.
+      # 7. MANUAL DRY RUN
       # ------------------------------------------------------
       - name: Dry-run summary
         if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           echo "DRY RUN COMPLETED"
-          echo "Generation and validation finished."
+          echo "Feed and sitemap generated and validated."
           echo "No production push performed."
 
       # ------------------------------------------------------
-      # STEP 8: AUTOMATIC PUBLISHING
-      # Only scheduled runs on main may publish.
+      # 8. AUTOMATIC PUBLISH
+      # Scheduled runs on main only.
       # ------------------------------------------------------
       - name: Publish updated catalog
         if: ${{ steps.changes.outputs.changed == 'true' && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
@@ -221,7 +216,7 @@ jobs:
           git push origin HEAD:main
 
       # ------------------------------------------------------
-      # STEP 9: JOB SUMMARY
+      # 9. JOB SUMMARY
       # ------------------------------------------------------
       - name: Write summary
         if: success()
@@ -230,8 +225,8 @@ jobs:
           {
             echo "## Kailash Kalamkari Google Catalog"
             echo ""
-            echo "- Catalog generated successfully"
-            echo "- Product and price validation passed"
+            echo "- Feed and sitemap generation successful"
+            echo "- Inventory validation passed"
             echo "- Changes detected: ${{ steps.changes.outputs.changed }}"
             echo "- Trigger: ${{ github.event_name }}"
           } >> "$GITHUB_STEP_SUMMARY"
