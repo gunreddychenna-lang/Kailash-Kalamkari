@@ -4,12 +4,13 @@ name: Refresh Google Catalog
 on:
   workflow_dispatch:
 
-   schedule:
-    # Primary: 08:37 AM IST
+  schedule:
+    # Primary: Daily at 08:37 AM IST (03:07 UTC)
     - cron: "7 3 * * *"
 
-    # Backup: 09:17 AM IST
+    # Backup: Daily at 09:17 AM IST (03:47 UTC)
     - cron: "47 3 * * *"
+
 permissions:
   contents: write
 
