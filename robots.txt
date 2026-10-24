@@ -1,0 +1,27 @@
+User-agent: *
+Allow: /
+
+# SITEMAP LOCATION
+Sitemap: https://www.kailash-kalamkari.com/sitemap.xml
+
+# ALLOW AI SEARCH ENGINES (FOR CITATIONS & SEARCH SUMMARIES)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+# BLOCK AGGRESSIVE THIRD-PARTY SEO SCRAPERS & BOT BANDWIDTH CONSUMERS
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: PetalBot
+User-agent: DotBot
+User-agent: AhrefsBot
+User-agent: SemrushBot
+Disallow: /

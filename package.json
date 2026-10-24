@@ -1,0 +1,28 @@
+{
+  "name": "kalamkari-sarees",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static preview server for the Kalamkari Sarees landing page.",
+  "scripts": {
+    "dev": "python -m http.server 8000",
+    "start": "python -m http.server 8000"
+  },
+  "main": "script.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gunreddychenna-lang/kalamkari-sarees-catalogue.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gunreddychenna-lang/kalamkari-sarees-catalogue/issues"
+  },
+  "homepage": "https://github.com/gunreddychenna-lang/kalamkari-sarees-catalogue#readme",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "playwright": "^1.61.1"
+  }
+}
